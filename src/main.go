@@ -1,11 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
@@ -45,6 +49,27 @@ type city struct {
 	Area uint64
 }
 
+func postHandler(rw http.ResponseWriter, request *http.Request) {
+	if request.Method == "POST" {
+		var tempCity city
+		decoder := json.NewDecoder(request.Body)
+		err := decoder.Decode(&tempCity)
+		if err != nil {
+			panic(err)
+		}
+		defer request.Body.Close()
+		fmt.Printf("Got a city %s with area %d", tempCity.Name, tempCity.Area)
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("201-created"))
+	}
+}
+
+func gorillaHandle(rw http.ResponseWriter, request *http.Request) {
+	log.Println("Processing request")
+	rw.Write([]byte("OK"))
+	log.Println("Finished processing request")
+}
+
 func main() {
 	// http.HandleFunc("/health", HealthCheck)
 	// http.ListenAndServe(":9000", nil)
@@ -78,7 +103,15 @@ func main() {
 	// 	fmt.Print(gen(), "\t")
 	// }
 
-	originalHandler := http.HandlerFunc(handle)
-	http.Handle("/", middleware(originalHandler))
-	http.ListenAndServe(":9000", nil)
+	// originalHandler := http.HandlerFunc(handle)
+	// http.Handle("/", middleware(originalHandler))
+	// http.ListenAndServe(":9000", nil)
+
+	// http.HandleFunc("/city", postHandler)
+	// http.ListenAndServe(":9000", nil)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/", gorillaHandle)
+	loggedRouter := handlers.LoggingHandler(os.Stdout, r)
+	http.ListenAndServe(":9000", loggedRouter)
 }
