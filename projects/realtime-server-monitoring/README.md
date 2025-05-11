@@ -19,7 +19,7 @@ This project is a real-time system monitoring dashboard built using **Golang**, 
 
 ## 📸 Screenshot
 
-> Include a screenshot here (optional).
+![realtime-monitoring-system](https://github.com/rabbicse/go-projects/blob/main/projects/realtime-server-monitoring/screenshots/realtime-system-monitor.png)
 
 ## 📁 Directory Structure
 
@@ -52,7 +52,7 @@ go mod tidy
 ### 3. Run the Application
 
 ```bash
-go run main.go
+go run .
 ```
 
 ### 4. Open in Browser
