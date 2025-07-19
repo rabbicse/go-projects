@@ -1,61 +1,126 @@
-<!doctype html>
-<html data-bs-theme="dark">
-
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
 <head>
-    <meta charset="utf-8" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Server Hardware Monitor</title>
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" as="style">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" as="style">
+    <link rel="preload" href="https://unpkg.com/htmx.org@1.9.12" as="script">
+    <link rel="preload" href="https://unpkg.com/htmx.org@1.9.12/dist/ext/ws.js" as="script">
+    
+    <!-- CSS with fallbacks -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
-        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" 
+          crossorigin="anonymous"
+          onerror="this.onerror=null;this.href='/local/bootstrap.min.css'">
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
-        integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
+          integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+    
     <style>
+        :root {
+            --monitor-icon-spacing: 0.5rem;
+            --header-font-size: 2rem;
+        }
+        
         .monitor-row p {
             margin-bottom: 0;
         }
-
+        
         .card header {
-            font-size: 2rem;
+            font-size: var(--header-font-size);
+        }
+        
+        #update-timestamp {
+            min-height: 1.5rem; /* Prevent layout shift */
+        }
+        
+        .loading-placeholder {
+            color: #6c757d;
+            font-style: italic;
         }
     </style>
 </head>
 
 <body>
     <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-12">
-                <h1>Server Hardware Monitor <i class="fa-brands fa-golang"
-                        style="float: right; padding-top: 0.8rem;"></i></h1>
-                <div hx-ext="ws" ws-connect="ws://localhost:8080/ws">
-                    <div id="update-timestamp">Waiting for data..</div>
-                    <hr />
-                    <div id="monitor-data">
-                        <div class="row monitor-row">
-                            <div class="col-md-6">
-                                <h5><i class="fa-solid fa-desktop" style="margin-right: 0.5rem"></i> System</h5>
-                                <div id="system-data"></div>
-                                <h5><i class="fa-solid fa-server" style="margin-right: 0.5rem"></i> Disk</h5>
-                                <div id="disk-data"></div>
+        <header class="mb-4">
+            <h1 class="d-flex justify-content-between align-items-center">
+                Server Hardware Monitor 
+                <i class="fa-brands fa-golang" aria-hidden="true"></i>
+            </h1>
+        </header>
+        
+        <main hx-ext="ws" ws-connect="/ws">
+            <div id="update-timestamp" class="loading-placeholder">
+                Connecting to server...
+            </div>
+            
+            <hr aria-hidden="true">
+            
+            <div id="monitor-data">
+                <div class="row monitor-row g-3">
+                    <div class="col-md-6">
+                        <section aria-labelledby="system-heading">
+                            <h2 id="system-heading" class="h5">
+                                <i class="fa-solid fa-desktop me-2"></i>System
+                            </h2>
+                            <div id="system-data" class="loading-placeholder">
+                                Loading system information...
                             </div>
-                            <div class="col-md-6">
-                                <h5><i class="fa-solid fa-microchip" style="margin-right: 0.5rem"></i> CPU</h5>
-                                <div id="cpu-data"></div>
+                        </section>
+                        
+                        <section aria-labelledby="disk-heading" class="mt-4">
+                            <h2 id="disk-heading" class="h5">
+                                <i class="fa-solid fa-server me-2"></i>Disk
+                            </h2>
+                            <div id="disk-data" class="loading-placeholder">
+                                Loading disk information...
                             </div>
-                        </div>
+                        </section>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <section aria-labelledby="cpu-heading">
+                            <h2 id="cpu-heading" class="h5">
+                                <i class="fa-solid fa-microchip me-2"></i>CPU
+                            </h2>
+                            <div id="cpu-data" class="loading-placeholder">
+                                Loading CPU information...
+                            </div>
+                        </section>
                     </div>
                 </div>
             </div>
-        </div>
-        <!-- <hr />
-        <div class="footer" style="font-size: 0.9rem; color: #6c757d;">
-            Built with &lt;3 by <a href="github.com/sigrdrifa">Sig</a>, as a tutorial for <a
-                href="https://htmx.org">htmx</a> and <a href="https://go.dev">Go</a>.
-        </div> -->
+        </main>
+    </div>
 
-        <script src="https://unpkg.com/htmx.org@1.9.12"
+    <!-- Load scripts at the end of body -->
+    <script src="https://unpkg.com/htmx.org@1.9.12" 
             integrity="sha384-ujb1lZYygJmzgSwoxRggbCHcjc0rB2XoQrxeTUQyRjrOnlCoYta87iKBWq3EsdM2"
-            crossorigin="anonymous"></script>
-        <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/ws.js"></script>
+            crossorigin="anonymous"
+            defer></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/ws.js" defer></script>
+    
+    <!-- Fallback for HTMX -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof htmx === 'undefined') {
+                console.error('HTMX failed to load, trying fallback');
+                var script = document.createElement('script');
+                script.src = '/local/htmx.min.js';
+                script.onload = function() {
+                    var wsScript = document.createElement('script');
+                    wsScript.src = '/local/ws.js';
+                    document.body.appendChild(wsScript);
+                };
+                document.body.appendChild(script);
+            }
+        });
+    </script>
 </body>
-
 </html>
