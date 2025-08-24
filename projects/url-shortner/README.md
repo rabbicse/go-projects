@@ -37,16 +37,36 @@ go get github.com/joho/godotenv
 go get -u gorm.io/driver/postgres
 ```
 
+### .env for local development side
+```bash
+SERVER_PORT=3000
+SERVER_BASE_URL=http://localhost:3000
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5444
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DBNAME=url_shortner
+POSTGRES_SSLMODE=disable
+```
+
 ## Test the API
 ```bash
 # Create short URL
-curl -X POST http://localhost:8080/shorten \
+curl -X POST http://localhost:3000/shorten \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
 
 # Redirect
-curl -L http://localhost:8080/abc123
+curl -L http://localhost:3000/abc123
 
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:3000/health
 ```
+
+## References
+- [bytebytego](https://bytebytego.com/courses/system-design-interview/design-a-url-shortener)
+- [systemdesignschool](https://systemdesignschool.io/problems/url-shortener/solution)
