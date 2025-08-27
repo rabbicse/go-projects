@@ -23,6 +23,7 @@ go get github.com/redis/go-redis/v9
 ### gorm
 ```bash
 go get -u gorm.io/gorm
+go get -u gorm.io/driver/postgres
 ```
 
 ### go-fiber
@@ -34,7 +35,6 @@ go get github.com/gofiber/fiber/v2/middleware/limiter@v2.52.9
 ### go-dotenv 
 ```bash
 go get github.com/joho/godotenv
-go get -u gorm.io/driver/postgres
 ```
 
 ### .env for local development side
@@ -51,6 +51,11 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DBNAME=url_shortner
 POSTGRES_SSLMODE=disable
+```
+
+## Run Service
+```bash
+godotenv -f .env go run ./cmd/serve
 ```
 
 ## Test the API
