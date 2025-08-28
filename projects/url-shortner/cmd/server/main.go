@@ -46,7 +46,7 @@ func main() {
 	defer redisRepo.Close()
 
 	// Initialize service
-	urlService := service.NewURLService(postgresRepo, redisRepo, cfg.Server.BaseURL)
+	urlService := service.NewURLService(postgresRepo, redisRepo, cfg.Server.BaseURL, int64(cfg.Server.MachineID))
 
 	// Initialize handler
 	urlHandler := handler.NewURLHandler(urlService)

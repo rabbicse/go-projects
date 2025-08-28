@@ -1,9 +1,8 @@
 package service
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/rabbicse/go-projects/projects/url-shortner/internal/model"
@@ -15,13 +14,15 @@ type URLService struct {
 	postgresRepo *repository.PostgresRepo
 	redisRepo    *repository.RedisRepo
 	baseURL      string
+	generator    *utils.UniqueIDGenerator
 }
 
-func NewURLService(postgresRepo *repository.PostgresRepo, redisRepo *repository.RedisRepo, baseURL string) *URLService {
+func NewURLService(postgresRepo *repository.PostgresRepo, redisRepo *repository.RedisRepo, baseURL string, machineID int64) *URLService {
 	return &URLService{
 		postgresRepo: postgresRepo,
 		redisRepo:    redisRepo,
 		baseURL:      baseURL,
+		generator:    utils.NewUniqueIDGenerator(machineID, 16, redisRepo),
 	}
 }
 
@@ -36,14 +37,12 @@ func (s *URLService) CreateShortURL(originalURL string) (*model.CreateResponse, 
 		}, nil
 	}
 
-	// Generate unique short code
-	hash := md5.Sum([]byte(originalURL + time.Now().String()))
-	hashStr := hex.EncodeToString(hash[:])
-	hashNum := uint64(0)
-	for _, char := range hashStr[:8] {
-		hashNum = hashNum*256 + uint64(char)
+	// generate unique id
+	shortCode, error := s.generator.GenerateID()
+	log.Printf("Short Code: %v", shortCode)
+	if error != nil {
+		return nil, fmt.Errorf("failed to create URL: %v", err)
 	}
-	shortCode := utils.Base62Encode(hashNum)
 
 	// Save to database
 	if err := s.postgresRepo.CreateURL(shortCode, originalURL); err != nil {

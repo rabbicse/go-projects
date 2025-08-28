@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"crypto/md5"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -11,17 +13,18 @@ import (
 
 // IDGenerator generates unique IDs using Machine ID + Sequence Number approach
 type UniqueIDGenerator struct {
-	machineID   string
-	sequence    uint64
-	sequenceMax uint64
-	mu          sync.Mutex
-	redisRepo   *repository.RedisRepo
+	datacenterID int64
+	machineID    int64
+	sequence     int64
+	sequenceMax  int64
+	mu           sync.Mutex
+	redisRepo    *repository.RedisRepo
 }
 
 // NewIDGenerator creates a new ID generator instance
-func NewUniqueIDGenerator(machineID string, sequenceBits uint, redisRepository *repository.RedisRepo) *UniqueIDGenerator {
+func NewUniqueIDGenerator(machineID int64, sequenceBits int64, redisRepository *repository.RedisRepo) *UniqueIDGenerator {
 	// Calculate maximum sequence number based on bits allocated
-	maxSeq := uint64(1<<sequenceBits) - 1
+	maxSeq := int64(1<<sequenceBits) - 1
 
 	return &UniqueIDGenerator{
 		machineID:   machineID,
@@ -32,80 +35,91 @@ func NewUniqueIDGenerator(machineID string, sequenceBits uint, redisRepository *
 }
 
 // GenerateID creates a unique short ID
-func (g *UniqueIDGenerator) GenerateID() (string, error) {
+// Snowflake like id:
+// 1 bit = 0
+// 41 bits = timestamp
+// 5 bits = datacenter ID
+// 5 bits = machine ID
+// 12 bits = sequence numer
+// Since 5 bits = 11111 in binary (which is 31 decimal), you can bitwise AND with 0x1F:
+func (g *UniqueIDGenerator) GenerateSnowflakeID() (string, error) {
+	// mutex lock to handle concurrency
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	datacenterID := g.datacenterID & 0x1F // keep 5 bits (0-31)
+
+	machineID := g.machineID & 0x1F // keep 5 bits (0-31)
+
+	// Get current timestamp in milliseconds
+	timestamp := time.Now().UnixMilli()
+
+	// Use Redis cluster to generate sequence number
+	seq, err := g.redisRepo.GetNextSequence("url:shortener")
+	if err != nil {
+		return "", fmt.Errorf("failed to generate sequence: %v", err)
+	}
 
 	if g.sequence >= g.sequenceMax {
 		return "", errors.New("sequence number exhausted")
 	}
 
-	g.sequence++
+	// 4. Combine into 64-bit integer:
+	// sign (0) | 41 bits timestamp | 5 bits datacenter | 5 bits machine | 12 bits sequence
+	id := packSnowflakeBits(timestamp, datacenterID, machineID, seq)
 
-	// Format: MachineID + SequenceNumber (padded)
-	// Example: "A1" + "0001" = "A10001"
-	return fmt.Sprintf("%s%04d", g.machineID, g.sequence), nil
+	log.Printf("Unique id after pack: %v\n", id)
+
+	return Base62Encode(id), nil
 }
 
-// Advanced version with base62 encoding for even shorter URLs
-type AdvancedIDGenerator struct {
-	machineID uint64
-	sequence  uint64
-	mu        sync.Mutex
-}
-
-func NewAdvancedIDGenerator(machineID uint64) *AdvancedIDGenerator {
-	return &AdvancedIDGenerator{
-		machineID: machineID,
-		sequence:  0,
-	}
-}
-
-func (g *AdvancedIDGenerator) GenerateShortID() string {
+// GenerateID creates a unique short ID
+// Snowflake like id:
+// 5 bits = datacenter ID
+// 5 bits = machine ID
+// 12 bits = sequence numer
+// Since 5 bits = 11111 in binary (which is 31 decimal), you can bitwise AND with 0x1F:
+func (g *UniqueIDGenerator) GenerateID() (string, error) {
+	// mutex lock to handle concurrency
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	g.sequence++
+	datacenterID := g.datacenterID & 0x1F // keep 5 bits (0-31)
 
-	// Combine machine ID and sequence number into a single number
-	combined := (g.machineID << 32) | (g.sequence & 0xFFFFFFFF)
+	machineID := g.machineID & 0x1F // keep 5 bits (0-31)
 
-	return Base62Encode(combined)
-}
-
-// DistributedIDGenerator for multiple machines
-type DistributedIDGenerator struct {
-	machineID   uint64
-	sequence    uint64
-	sequenceMax uint64
-	epoch       time.Time
-	mu          sync.Mutex
-}
-
-func NewDistributedIDGenerator(machineID uint64, sequenceBits uint) *DistributedIDGenerator {
-	return &DistributedIDGenerator{
-		machineID:   machineID,
-		sequence:    0,
-		sequenceMax: uint64(1<<sequenceBits) - 1,
-		epoch:       time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+	// Use Redis cluster to generate sequence number
+	seq, err := g.redisRepo.GetNextSequence("url:shortener")
+	if err != nil {
+		return "", fmt.Errorf("failed to generate sequence: %v", err)
 	}
-}
-
-func (g *DistributedIDGenerator) GenerateSnowflakeLikeID() uint64 {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-
-	timestamp := uint64(time.Since(g.epoch).Milliseconds())
 
 	if g.sequence >= g.sequenceMax {
-		// Wait for next millisecond if sequence exhausted
-		time.Sleep(time.Millisecond)
-		timestamp = uint64(time.Since(g.epoch).Milliseconds())
-		g.sequence = 0
+		return "", errors.New("sequence number exhausted")
 	}
 
-	id := (timestamp << 22) | (g.machineID << 12) | g.sequence
-	g.sequence++
+	// 4. Combine into 64-bit integer:
+	// sign (0) | 41 bits timestamp | 5 bits datacenter | 5 bits machine | 12 bits sequence
+	// id := packBits(datacenterID, machineID, seq)
+	id := GenerateMD5Hash(datacenterID, machineID, seq)
 
-	return id
+	log.Printf("Unique id after pack: %v\n", id)
+
+	return Base62EncodeBytes(id), nil
+}
+
+func packSnowflakeBits(timestamp int64, datacenterID int64, machineID int64, seq int64) int64 {
+	seq &= 0xFFF // 12 bits
+	return (timestamp << 22) | (datacenterID << 17) | (machineID << 12) | seq
+}
+
+func packBits(datacenterID int64, machineID int64, seq int64) int64 {
+	seq &= 0xFFF // 12 bits
+	return (datacenterID << 17) | (machineID << 12) | seq
+}
+
+func GenerateMD5Hash(dcID, machineID, seq int64) []byte {
+	input := fmt.Sprintf("%d:%d:%d", dcID, machineID, seq)
+	hash := md5.Sum([]byte(input))
+	return hash[:] // 16 bytes
 }

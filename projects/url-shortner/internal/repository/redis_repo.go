@@ -39,6 +39,15 @@ func (r *RedisRepo) GetURL(shortCode string) (string, error) {
 	return r.client.Get(ctx, "url:"+shortCode).Result()
 }
 
+func (r *RedisRepo) GetNextSequence(key ...string) (int64, error) {
+	ctx := context.Background()
+	seqKey := "snowflake:sequence" // default key
+	if len(key) > 0 && key[0] != "" {
+		seqKey = key[0]
+	}
+	return r.client.Incr(ctx, seqKey).Result()
+}
+
 func (r *RedisRepo) Close() error {
 	return r.client.Close()
 }

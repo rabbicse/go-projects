@@ -12,8 +12,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    string
-	BaseURL string
+	Port      string
+	BaseURL   string
+	MachineID int
 }
 
 type RedisConfig struct {
@@ -33,8 +34,9 @@ type PostgresConfig struct {
 func LoadConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port:    getEnv("SERVER_PORT", "3000"),
-			BaseURL: getEnv("SERVER_BASE_URL", "http://localhost:3000"),
+			Port:      getEnv("SERVER_PORT", "3000"),
+			BaseURL:   getEnv("SERVER_BASE_URL", "http://localhost:3000"),
+			MachineID: getEnvInt("MACHINE_ID", 0),
 		},
 		Redis: RedisConfig{
 			Host: getEnv("REDIS_HOST", "localhost"),
