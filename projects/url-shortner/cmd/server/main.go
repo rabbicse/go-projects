@@ -6,11 +6,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/handler"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/infra/idgenerator"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/repository"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/service"
 	"github.com/rabbicse/go-projects/projects/url-shortner/internal/config"
-	"github.com/rabbicse/go-projects/projects/url-shortner/internal/handler"
-	"github.com/rabbicse/go-projects/projects/url-shortner/internal/repository"
-	"github.com/rabbicse/go-projects/projects/url-shortner/internal/service"
-	"github.com/rabbicse/go-projects/projects/url-shortner/pkg/middleware"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/pkg/middleware"
 )
 
 func main() {
@@ -45,11 +46,24 @@ func main() {
 	}
 	defer redisRepo.Close()
 
-	// Initialize service
-	urlService := service.NewURLService(postgresRepo, redisRepo, cfg.Server.BaseURL, int64(cfg.Server.MachineID))
+	// Initialize id generator
+	idGenerator := idgenerator.NewUniqueIDGenerator(int64(cfg.Server.MachineID), 16, redisRepo)
 
-	// Initialize handler
-	urlHandler := handler.NewURLHandler(urlService)
+	// Initialize shortner service
+	// postgresRepo, redisRepo, cfg.Server.BaseURL, int64(cfg.Server.MachineID)
+
+	shortenService := service.NewShortenerService(&service.ShortnerServiceConfig{
+		PostgresRepo: postgresRepo,
+		RedisRepo:    redisRepo,
+		BaseURL:      cfg.Server.BaseURL,
+		Generator:    idGenerator,
+	})
+
+	redirectService := service.NewRedirectService(postgresRepo, redisRepo)
+
+	// Initialize handlers
+	shortenerHandler := handler.NewShortenHandler(shortenService)
+	redirectHandler := handler.NewRedirectHandler(redirectService)
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -61,9 +75,9 @@ func main() {
 	app.Use(middleware.RateLimiter())
 
 	// Routes
-	app.Post("/shorten", urlHandler.CreateShortURL)
-	app.Get("/:code", urlHandler.Redirect)
-	app.Get("/health", urlHandler.HealthCheck)
+	app.Post("/shorten", shortenerHandler.CreateShortURL)
+	app.Get("/:code", redirectHandler.Redirect)
+	// app.Get("/health", urlHandler.HealthCheck)
 
 	// Start server
 	port := cfg.Server.Port

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/rabbicse/go-projects/projects/url-shortner/internal/model"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

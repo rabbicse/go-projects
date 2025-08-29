@@ -2,7 +2,7 @@ package utils
 
 const base62Chars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-func Base62Encode(num int64) string {
+func Encode(num int64) string {
 	if num == 0 {
 		return string(base62Chars[0])
 	}
@@ -22,7 +22,7 @@ func Base62Encode(num int64) string {
 	return string(encoded)
 }
 
-func Base62EncodeBytes(data []byte) string {
+func EncodeBytes(data []byte) string {
 	var num uint64
 	for i := 0; i < 8 && i < len(data); i++ { // take first 8 bytes for int64
 		num = (num << 8) | uint64(data[i])

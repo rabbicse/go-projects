@@ -1,4 +1,4 @@
-package utils
+package idgenerator
 
 import (
 	"crypto/md5"
@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rabbicse/go-projects/projects/url-shortner/internal/repository"
+	"github.com/rabbicse/go-projects/projects/url-shortner/internal/app/repository"
+	base62 "github.com/rabbicse/go-projects/projects/url-shortner/internal/pkg/base62"
 )
 
 // IDGenerator generates unique IDs using Machine ID + Sequence Number approach
@@ -70,7 +71,7 @@ func (g *UniqueIDGenerator) GenerateSnowflakeID() (string, error) {
 
 	log.Printf("Unique id after pack: %v\n", id)
 
-	return Base62Encode(id), nil
+	return base62.Encode(id), nil
 }
 
 // GenerateID creates a unique short ID
@@ -101,11 +102,16 @@ func (g *UniqueIDGenerator) GenerateID() (string, error) {
 	// 4. Combine into 64-bit integer:
 	// sign (0) | 41 bits timestamp | 5 bits datacenter | 5 bits machine | 12 bits sequence
 	// id := packBits(datacenterID, machineID, seq)
-	id := GenerateMD5Hash(datacenterID, machineID, seq)
+	// Concatenate as string
+	input := fmt.Sprintf("%d%d%d", datacenterID, machineID, seq)
+
+	// Convert to byte array
+	// id := GenerateMD5Hash(datacenterID, machineID, seq)
+	id := []byte(input)
 
 	log.Printf("Unique id after pack: %v\n", id)
 
-	return Base62EncodeBytes(id), nil
+	return base62.EncodeBytes(id), nil
 }
 
 func packSnowflakeBits(timestamp int64, datacenterID int64, machineID int64, seq int64) int64 {
