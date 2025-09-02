@@ -55,7 +55,7 @@ POSTGRES_SSLMODE=disable
 
 ## Run Service
 ```bash
-godotenv -f .env go run ./cmd/serve
+godotenv -f .env go run ./cmd/server
 ```
 
 ## Test the API

@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -78,6 +80,14 @@ func main() {
 	app.Post("/shorten", shortenerHandler.CreateShortURL)
 	app.Get("/:code", redirectHandler.Redirect)
 	// app.Get("/health", urlHandler.HealthCheck)
+	// Add health check endpoint
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.Status(http.StatusOK).JSON(fiber.Map{
+			"status":    "healthy",
+			"service":   "url-shortener",
+			"timestamp": time.Now().Unix(),
+		})
+	})
 
 	// Start server
 	port := cfg.Server.Port

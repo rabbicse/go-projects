@@ -156,7 +156,7 @@ func (ag *APIGateway) proxyRequest(c *fiber.Ctx) error {
 	backendURL, err := ag.loadBalancer.GetNextServer()
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error":   "Service unavailable",
+			"error":   "Service unavailable" + err.Error(),
 			"message": "No healthy backend servers available",
 		})
 	}
@@ -170,7 +170,7 @@ func (ag *APIGateway) proxyRequest(c *fiber.Ctx) error {
 		// Mark server as unhealthy
 		ag.loadBalancer.SetServerHealth(backendURL, false)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
-			"error":   "Bad gateway",
+			"error":   "Bad gateway " + err.Error(),
 			"message": "Failed to connect to backend service",
 		})
 	}

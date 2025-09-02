@@ -1,13 +1,21 @@
 services:
-  postgres-url-shortner:
+  postgres-url-shortener:
     image: postgres:latest
-    container_name: postgres-url-shortner
+    container_name: postgres-url-shortener
     ports:
       - "5444:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=url_shortner
+      - POSTGRES_DB=url_shortener
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
  # Redis Stack
   redis-stack:
@@ -32,30 +40,32 @@ services:
 # URL Shortener Service 1
   url-shortener-1:
     build:
-      context: ./url-shortener
+      context: ./url-shortener-service
       dockerfile: Dockerfile
     container_name: url-shortener-1
     environment:
       - SERVICE_ID=1
       - REDIS_HOST=redis-stack
       - REDIS_PORT=6379
-      - POSTGRES_HOST=postgres-url-shortner
-      - POSTGRES_PORT=5444
+      - POSTGRES_HOST=postgres-url-shortener
+      - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=url_shortner
+      - POSTGRES_DBNAME=url_shortener
       - BASE_URL=http://api-gateway:3000
       - DATACENTER_ID=1
       - MACHINE_ID=1
       - PORT=8080
     depends_on:
-      - postgres-url-shortner
-      - redis-stack
+      postgres-url-shortener:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
     networks:
       - url-shortener-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -63,30 +73,32 @@ services:
   # URL Shortener Service 2
   url-shortener-2:
     build:
-      context: ./url-shortener
+      context: ./url-shortener-service
       dockerfile: Dockerfile
     container_name: url-shortener-2
     environment:
       - SERVICE_ID=2
       - REDIS_HOST=redis-stack
       - REDIS_PORT=6379
-      - POSTGRES_HOST=postgres-url-shortner
-      - POSTGRES_PORT=5444
+      - POSTGRES_HOST=postgres-url-shortener
+      - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=url_shortner
+      - POSTGRES_DBNAME=url_shortener
       - BASE_URL=http://api-gateway:3000
       - DATACENTER_ID=1
       - MACHINE_ID=2
       - PORT=8080
     depends_on:
-      - postgres-url-shortner
-      - redis-stack
+      postgres-url-shortener:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
     networks:
       - url-shortener-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -94,30 +106,32 @@ services:
   # URL Shortener Service 3
   url-shortener-3:
     build:
-      context: ./url-shortener
+      context: ./url-shortener-service
       dockerfile: Dockerfile
     container_name: url-shortener-3
     environment:
       - SERVICE_ID=3
       - REDIS_HOST=redis-stack
       - REDIS_PORT=6379
-      - POSTGRES_HOST=postgres-url-shortner
-      - POSTGRES_PORT=5444
+      - POSTGRES_HOST=postgres-url-shortener
+      - POSTGRES_PORT=5432
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=url_shortner
+      - POSTGRES_DBNAME=url_shortener
       - BASE_URL=http://api-gateway:3000
       - DATACENTER_ID=1
       - MACHINE_ID=3
       - PORT=8080
     depends_on:
-      - postgres-url-shortner
-      - redis-stack
+      postgres-url-shortener:
+        condition: service_healthy
+      redis-stack:
+        condition: service_healthy
     networks:
       - url-shortener-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -184,10 +198,9 @@ services:
 
 volumes:
   redis-stack-data:
+  prometheus-data:
+  grafana-data:
 
 networks:
   url-shortener-network:
     driver: bridge
-    # ipam:
-    #   config:
-    #     - subnet: 172.20.0.0/16
