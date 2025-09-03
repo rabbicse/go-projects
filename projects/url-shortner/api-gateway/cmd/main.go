@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -96,10 +97,10 @@ func (ag *APIGateway) SetupMiddleware() {
 	}
 
 	// Rate limiting
-	ag.app.Use(ag.rateLimiter.RateLimit(ag.config.RateLimitRequests, ag.config.RateLimitDuration))
+	// ag.app.Use(ag.rateLimiter.RateLimit(ag.config.RateLimitRequests, ag.config.RateLimitDuration))
 
 	// Authentication
-	ag.app.Use(ag.auth.Authenticate())
+	// ag.app.Use(ag.auth.Authenticate())
 }
 
 func (ag *APIGateway) SetupRoutes() {
@@ -115,11 +116,17 @@ func (ag *APIGateway) SetupRoutes() {
 	// Shorten URL (POST /api/v1/shorten)
 	api.Post("/shorten", ag.proxyRequest)
 
+	api.Get("/health", ag.healthCheck)
+
 	// Get URL stats (GET /api/v1/stats/:id)
 	api.Get("/stats/:id", ag.cache.Cache(ag.config.CacheTTL), ag.proxyRequest)
 
 	// Redirect (GET /:id)
 	ag.app.Get("/:id", ag.cache.Cache(5*time.Minute), ag.proxyRequest)
+
+	// for _, r := range ag.app.GetRoutes() {
+	// 	log.Printf("Route: %-6s %s", r.Method, r.Path)
+	// }
 }
 
 func (ag *APIGateway) healthCheck(c *fiber.Ctx) error {
@@ -154,15 +161,25 @@ func (ag *APIGateway) healthCheck(c *fiber.Ctx) error {
 func (ag *APIGateway) proxyRequest(c *fiber.Ctx) error {
 	// Get next healthy backend server
 	backendURL, err := ag.loadBalancer.GetNextServer()
+	log.Printf("Backend URL: %v\n", backendURL)
 	if err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
-			"error":   "Service unavailable" + err.Error(),
+			"error":   "Backend URL: " + backendURL + " => Service unavailable" + err.Error(),
 			"message": "No healthy backend servers available",
 		})
 	}
 
+	// Rewrite path: remove /api/v1 prefix for backend services
+	originalPath := c.Path()
+	backendPath := strings.TrimPrefix(originalPath, "/api/v1")
+	if backendPath == "" {
+		backendPath = "/"
+	}
+
 	// Create proxy request
-	targetURL := "http://" + backendURL + c.OriginalURL()
+	targetURL := "http://" + backendURL + backendPath
+
+	log.Printf("Target URL: %v\n", targetURL)
 
 	// Forward the request
 	statusCode, body, err := ag.doProxyRequest(c, targetURL)
@@ -243,6 +260,15 @@ func (ag *APIGateway) checkServerHealth(serverURL string) {
 func (ag *APIGateway) Start() error {
 	ag.SetupMiddleware()
 	ag.SetupRoutes()
+
+	// Log routes AFTER setup but BEFORE starting server
+	log.Println("=== Registered Routes ===")
+	for _, route := range ag.app.GetRoutes() {
+		if route.Method != "HEAD" { // Filter out HEAD methods
+			log.Printf("Route: %-6s %s", route.Method, route.Path)
+		}
+	}
+	log.Println("=========================")
 
 	// Start health checks in background
 	go ag.StartHealthChecks()

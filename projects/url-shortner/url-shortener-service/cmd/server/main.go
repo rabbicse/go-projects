@@ -77,10 +77,6 @@ func main() {
 	app.Use(middleware.RateLimiter())
 
 	// Routes
-	app.Post("/shorten", shortenerHandler.CreateShortURL)
-	app.Get("/:code", redirectHandler.Redirect)
-	// app.Get("/health", urlHandler.HealthCheck)
-	// Add health check endpoint
 	app.Get("/health", func(c *fiber.Ctx) error {
 		return c.Status(http.StatusOK).JSON(fiber.Map{
 			"status":    "healthy",
@@ -88,6 +84,12 @@ func main() {
 			"timestamp": time.Now().Unix(),
 		})
 	})
+
+	// business
+	app.Post("/shorten", shortenerHandler.CreateShortURL)
+	// app.Get("/health", urlHandler.HealthCheck)
+	// Add health check endpoint
+	app.Get("/:code", redirectHandler.Redirect)
 
 	// Start server
 	port := cfg.Server.Port
