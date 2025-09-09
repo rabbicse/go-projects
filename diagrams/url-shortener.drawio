@@ -1,9 +1,48 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" version="28.1.1">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36" version="28.1.2">
   <diagram name="Page-1" id="1BqeDNmZhvdw77BlNDJN">
-    <mxGraphModel>
+    <mxGraphModel dx="2896" dy="1119" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-1" value="" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#505050;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;outlineConnect=0;align=center;shape=mxgraph.office.devices.mac_client;" vertex="1" parent="1">
+          <mxGeometry x="99" y="477" width="58" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-4" value="" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="310" y="456" width="210" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-5" value="" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;aspect=fixed;" vertex="1" parent="1">
+          <mxGeometry x="670" y="450" width="70" height="93.3" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-6" value="URL Shortener Service" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="352" y="482" width="130" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-7" value="" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="K6JSqoxQP3qw9iLpx92t-4" target="K6JSqoxQP3qw9iLpx92t-5">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="460" y="600" as="sourcePoint" />
+            <mxPoint x="510" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-8" value="Database" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="675" y="491" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-9" value="Client" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="98" y="543.3" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-11" value="" style="endArrow=classic;startArrow=classic;html=1;rounded=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1.052;exitY=0.417;exitDx=0;exitDy=0;exitPerimeter=0;" edge="1" parent="1" source="K6JSqoxQP3qw9iLpx92t-1" target="K6JSqoxQP3qw9iLpx92t-4">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="180" y="500" as="sourcePoint" />
+            <mxPoint x="440" y="550" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-12" value="POST" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="190" y="461" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-13" value="GET" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="190" y="508" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="K6JSqoxQP3qw9iLpx92t-14" value="High Level Design of Basic URL Shortener Service" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="160" y="600" width="520" height="30" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
