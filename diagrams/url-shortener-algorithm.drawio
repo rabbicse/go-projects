@@ -37,6 +37,9 @@
         <mxCell id="zrS2j0rmHHpfhCojANXW-9" value="High Level Design of hash function" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontSize=20;" vertex="1" parent="1">
           <mxGeometry x="202" y="730" width="359" height="30" as="geometry" />
         </mxCell>
+        <mxCell id="zrS2j0rmHHpfhCojANXW-10" value="Hash" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="510" y="530" width="60" height="30" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
