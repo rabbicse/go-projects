@@ -86,16 +86,19 @@
           <mxGeometry x="199" y="343" width="79" height="30" as="geometry" />
         </mxCell>
         <mxCell id="1yLUU9JP1n_1UrEdNb5V-18" value="GET" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
-          <mxGeometry x="320" y="270" width="60" height="30" as="geometry" />
+          <mxGeometry x="310" y="278" width="60" height="20" as="geometry" />
         </mxCell>
         <mxCell id="1yLUU9JP1n_1UrEdNb5V-19" value="POST" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
-          <mxGeometry x="260" y="227" width="60" height="30" as="geometry" />
+          <mxGeometry x="260" y="234" width="60" height="23" as="geometry" />
         </mxCell>
-        <mxCell id="1yLUU9JP1n_1UrEdNb5V-20" value="Redis Cluster" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+        <mxCell id="1yLUU9JP1n_1UrEdNb5V-20" value="Redis Cluster" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="603" y="320" width="80" height="30" as="geometry" />
         </mxCell>
-        <mxCell id="1yLUU9JP1n_1UrEdNb5V-21" value="Redis Cache" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+        <mxCell id="1yLUU9JP1n_1UrEdNb5V-21" value="Redis Cache" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1" vertex="1" parent="1">
           <mxGeometry x="609" y="406" width="75" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="1yLUU9JP1n_1UrEdNb5V-22" value="HIGH Level Design of Distributed URL Shortener Service" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;" vertex="1" parent="1">
+          <mxGeometry x="160" y="450" width="420" height="30" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
