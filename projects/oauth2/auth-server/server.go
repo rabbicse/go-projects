@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/rabbicse/go-projects/oauth2/auth-server/auth"
+	"github.com/rabbicse/go-projects/oauth2/auth-server/resource"
 )
 
 const (
@@ -21,6 +22,8 @@ func main() {
 	http.HandleFunc("/authorize", auth.Authorize)
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/consent", auth.RequestApproval)
+	http.HandleFunc("/token", auth.GetAccessToken)
+	http.HandleFunc("/access", resource.GrantAccess)
 
 	log.Fatal(http.ListenAndServe(Port, nil))
 }

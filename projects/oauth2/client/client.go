@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 const (
@@ -18,6 +22,11 @@ var (
 	clientSecret = ""
 	scope        = ""
 )
+
+type Token struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+}
 
 func main() {
 	http.HandleFunc("/", root)
@@ -86,22 +95,81 @@ func submit(w http.ResponseWriter, r *http.Request) {
 
 func callback(w http.ResponseWriter, r *http.Request) {
 
-	// params := r.URL.Query()
+	params := r.URL.Query()
 
-	// token := getAccessToken(w, params)
-	// secret := getProtectedData(w, token)
+	token := getAccessToken(w, params)
+	secret := getProtectedData(w, token)
 
 	html := fmt.Sprintf(
 		`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Print Shop</title>
-    </head>
-    <body>
-        <h1>Super Secret</h1>
-    </body>
-    </html>`)
+	<!DOCTYPE html>
+	<html>
+	<head>
+	    <title>Print Shop</title>
+	</head>
+	<body>
+	    <h1>Super Secret</h1>
+	    <p>%s</p>
+	</body>
+	</html>
+	`, secret)
 
 	fmt.Fprintf(w, html)
+	// fmt.Printf("token", token)
+}
+
+func getAccessToken(w http.ResponseWriter, params url.Values) Token {
+
+	form := url.Values{
+		"grant_type":   []string{"authorization_code"},
+		"code":         []string{params.Get("code")},
+		"redirect_uri": []string{ClientUrl},
+	}
+
+	uri := fmt.Sprintf("%s/token", ServerUrl)
+
+	req, err := http.NewRequest("POST", uri, strings.NewReader(form.Encode()))
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+
+	req.SetBasicAuth(clientId, clientSecret)
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+	}
+	defer res.Body.Close()
+
+	data := ""
+
+	scanner := bufio.NewScanner(res.Body)
+	for scanner.Scan() {
+		data += scanner.Text()
+	}
+
+	token := Token{}
+	json.Unmarshal([]byte(data), &token)
+
+	return token
+}
+
+func getProtectedData(w http.ResponseWriter, token Token) string {
+
+	url := fmt.Sprintf("%s/access?access_token=%s", ServerUrl, token.AccessToken)
+	res, err := http.Get(url)
+	if err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+	}
+	defer res.Body.Close()
+
+	data := ""
+	scanner := bufio.NewScanner(res.Body)
+	for scanner.Scan() {
+		data += scanner.Text()
+	}
+
+	return data
 }
