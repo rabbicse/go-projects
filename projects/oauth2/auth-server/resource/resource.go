@@ -1,28 +1,34 @@
+// Package resource provides a tiny protected resource endpoint used by the
+// example auth-server. It validates access tokens issued by the `auth`
+// package and returns protected data for the associated client. This is a
+// demonstration-only resource server and does not implement real token
+// verification or security checks.
 package resource
 
 import (
-	"fmt"
-	"net/http"
 	"strconv"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/rabbicse/go-projects/oauth2/auth-server/auth"
 )
 
-func GrantAccess(w http.ResponseWriter, r *http.Request) {
+func GrantAccess(c *fiber.Ctx) error {
 
-	params := r.URL.Query()
-	token, err := strconv.Atoi(params.Get("access_token"))
+	tokenStr := c.Query("access_token")
+
+	token, err := strconv.Atoi(tokenStr)
 	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return c.Status(fiber.StatusUnauthorized).
+			SendString("Unauthorized")
 	}
 
 	for clientId, combo := range auth.AccessCombinations {
 		if combo.AccessToken == token {
 			data := secretData[clientId]
-			fmt.Fprintf(w, data)
-			return
+			return c.SendString(data)
 		}
 	}
 
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	return c.Status(fiber.StatusUnauthorized).
+		SendString("Unauthorized")
 }

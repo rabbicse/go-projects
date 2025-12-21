@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/rabbicse/go-projects/oauth2/auth-server/auth"
 	"github.com/rabbicse/go-projects/oauth2/auth-server/resource"
 )
@@ -15,46 +15,43 @@ const (
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "hello world!")
-	})
+	app := fiber.New()
 
-	http.HandleFunc("/authorize", auth.Authorize)
-	http.HandleFunc("/login", login)
-	http.HandleFunc("/consent", auth.RequestApproval)
-	http.HandleFunc("/token", auth.GetAccessToken)
-	http.HandleFunc("/access", resource.GrantAccess)
+	app.Get("/authorize", auth.Authorize)
+	app.Get("/access", resource.GrantAccess)
 
-	log.Fatal(http.ListenAndServe(Port, nil))
+	app.Post("/login", Login)
+	app.Post("/consent", auth.RequestApproval)
+	app.Post("/token", auth.GetAccessToken)
+
+	log.Fatal(app.Listen(Port))
 }
 
-func login(w http.ResponseWriter, r *http.Request) {
-
-	params := r.URL.Query()
-	clientId := params.Get("client_id")
-	redirectUri := params.Get("redirect_uri")
-	scope := params.Get("scope")
-	state := params.Get("state")
+func Login(c *fiber.Ctx) error {
+	clientId := c.Query("client_id")
+	redirectUri := c.Query("redirect_uri")
+	scope := c.Query("scope")
+	state := c.Query("state")
 
 	html := fmt.Sprintf(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Photo Gallery</title>
-    </head>
-    <body style="background-color: blue;">
-        <h1>Photo Gallery</h1>
-        <p>Print Service is requesting access to your photos.</p>
-        <form method="post" action="/consent">
-            <input type="hidden" name="client_id" value="%s">
-            <input type="hidden" name="redirect_uri" value="%s">
-            <input type="hidden" name="scope" value="%s">
-            <input type="hidden" name="state" value="%s">
-            <button type="submit" name="action" value="allow">Allow</button>
-        </form>
-    </body>
-    </html>
-    `, clientId, redirectUri, scope, state)
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Photo Gallery</title>
+</head>
+<body style="background-color: blue;">
+	<h1>Photo Gallery</h1>
+	<p>Print Service is requesting access to your photos.</p>
+	<form method="post" action="/consent">
+		<input type="hidden" name="client_id" value="%s">
+		<input type="hidden" name="redirect_uri" value="%s">
+		<input type="hidden" name="scope" value="%s">
+		<input type="hidden" name="state" value="%s">
+		<button type="submit" name="action" value="allow">Allow</button>
+	</form>
+</body>
+</html>
+`, clientId, redirectUri, scope, state)
 
-	fmt.Fprintf(w, html)
+	return c.Type("html").SendString(html)
 }

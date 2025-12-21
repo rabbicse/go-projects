@@ -2,56 +2,50 @@ package auth
 
 import (
 	"fmt"
-	"net/http"
+
+	"github.com/gofiber/fiber/v2"
 )
 
-func RequestApproval(w http.ResponseWriter, r *http.Request) {
+func RequestApproval(c *fiber.Ctx) error {
 
-	// Validate Method
-	if r.Method != "POST" {
-		http.Error(w, "Invalid Method", http.StatusMethodNotAllowed)
-		return
+	if c.Method() != fiber.MethodPost {
+		return c.Status(fiber.StatusMethodNotAllowed).
+			SendString("Invalid Method")
 	}
 
-	//Parse Form
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "Unauthorized", http.StatusMethodNotAllowed)
-		return
+	if clientId, ok := validRequestApproval(c); ok {
+		return sendCode(c, clientId)
 	}
 
-	// Validate Request
-	if clientId, ok := validRequestApproval(r); ok {
-		sendCode(w, r, clientId)
-		return
-	}
-
-	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	return c.Status(fiber.StatusUnauthorized).
+		SendString("Unauthorized")
 }
 
-func validRequestApproval(r *http.Request) (ClientId, bool) {
+func validRequestApproval(c *fiber.Ctx) (ClientId, bool) {
 
-	form := r.Form
-	action := form.Get("action")
-	state := form.Get("state")
-	clientId := ClientId(form.Get("client_id"))
+	action := c.FormValue("action")
+	state := c.FormValue("state")
+	clientId := ClientId(c.FormValue("client_id"))
 
 	storedState := AccessCombinations[clientId].State
 
-	if action == "allow" &&
-		state == storedState {
+	if action == "allow" && state == storedState {
 		return clientId, true
 	}
 
 	return clientId, false
 }
 
-func sendCode(w http.ResponseWriter, r *http.Request, clientId ClientId) {
+func sendCode(c *fiber.Ctx, clientId ClientId) error {
 
 	code := AccessCombinations[clientId].Code
 	redirectUrl := apps[clientId].RedirectUri
-	state := r.Form.Get("state")
+	state := c.FormValue("state")
 
-	url := fmt.Sprintf("%s?code=%d&state=%s", redirectUrl, code, state)
+	url := fmt.Sprintf(
+		"%s?code=%d&state=%s",
+		redirectUrl, code, state,
+	)
 
-	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+	return c.Redirect(url, fiber.StatusTemporaryRedirect)
 }
