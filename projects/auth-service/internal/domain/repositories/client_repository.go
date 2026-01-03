@@ -1,6 +1,9 @@
-package repository
+package repositories
 
-import "github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+import (
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+	"github.com/rabbicse/auth-service/pkg/errors"
+)
 
 // ClientRepository defines the interface for Client aggregate persistence
 type ClientRepository interface {
