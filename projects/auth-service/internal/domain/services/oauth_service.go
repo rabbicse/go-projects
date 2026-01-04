@@ -3,6 +3,9 @@ package services
 import (
 	"time"
 
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/authorization"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
 	"github.com/rabbicse/auth-service/internal/domain/repositories"
 	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 	"github.com/rabbicse/auth-service/pkg/errors"
@@ -48,7 +51,7 @@ func (s *OAuthService) CreateAuthorization(
 	}
 
 	// Validate client is active
-	if !clientAgg.IsActive() {
+	if !clientAgg.Active {
 		return nil, errors.NewDomainError("invalid_client", "Client is not active")
 	}
 
@@ -136,7 +139,7 @@ func (s *OAuthService) ExchangeAuthorizationForTokens(
 		clientID,
 		auth.UserID().Value(),
 		auth.Scopes(),
-		valueobjects.TokenType{value: "Bearer"},
+		valueobjects.TokenType{Value: "Bearer"},
 		time.Hour, // Access token lifetime
 		true,      // Include refresh token
 	)
@@ -226,7 +229,7 @@ func (s *OAuthService) RefreshAccessToken(
 	}
 
 	// Revoke old token
-	if err := s.tokenRepo.RevokeAccessToken(tokenAgg.AccessToken().Value()); err != nil {
+	if err := s.tokenRepo.RevokeAccessToken(tokenAgg.AccessToken().Value); err != nil {
 		// Log error but continue
 		// In production, use proper logging
 	}

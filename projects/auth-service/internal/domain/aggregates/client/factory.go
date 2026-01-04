@@ -1,8 +1,10 @@
 package client
 
 import (
-	"oauth-ddd/internal/domain/valueobjects"
 	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/shared"
+	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 )
 
 // ClientFactory creates and validates Client aggregates
@@ -14,7 +16,7 @@ func NewClientFactory() *ClientFactory {
 
 // CreateConfidentialClient creates a confidential client with secret
 func (f *ClientFactory) CreateConfidentialClient(id, name, secret string, redirectURIs, scopes []string) (*Client, error) {
-	client, err := NewClient(id, name, ClientTypeConfidential)
+	client, err := NewClient(id, name, shared.ClientTypeConfidential)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +38,7 @@ func (f *ClientFactory) CreateConfidentialClient(id, name, secret string, redire
 
 // CreatePublicClient creates a public client (no secret)
 func (f *ClientFactory) CreatePublicClient(id, name string, redirectURIs, scopes []string) (*Client, error) {
-	client, err := NewClient(id, name, ClientTypePublic)
+	client, err := NewClient(id, name, shared.ClientTypePublic)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +61,7 @@ func (f *ClientFactory) Reconstitute(
 	secretHash string,
 	redirectURIs []string,
 	allowedScopes []string,
-	clientType ClientType,
+	clientType shared.ClientType,
 	active bool,
 	createdAt time.Time,
 	updatedAt time.Time,
@@ -71,14 +73,14 @@ func (f *ClientFactory) Reconstitute(
 	}
 
 	client := &Client{
-		ID:         clientID,
+		ID:         *clientID,
 		Name:       name,
 		SecretHash: secretHash,
 		Type:       clientType,
 		Active:     active,
-		createdAt:  createdAt,
-		updatedAt:  updatedAt,
-		Events:     []DomainEvent{},
+		CreatedAt:  createdAt,
+		UpdatedAt:  updatedAt,
+		Events:     []shared.DomainEvent{},
 	}
 
 	// Reconstitute redirect URIs
@@ -88,7 +90,7 @@ func (f *ClientFactory) Reconstitute(
 		if err != nil {
 			return nil, err
 		}
-		uris = append(uris, redirectURI)
+		uris = append(uris, *redirectURI)
 	}
 	client.RedirectURIs = uris
 
@@ -99,7 +101,7 @@ func (f *ClientFactory) Reconstitute(
 		if err != nil {
 			return nil, err
 		}
-		scopes = append(scopes, s)
+		scopes = append(scopes, *s)
 	}
 	client.AllowedScopes = scopes
 

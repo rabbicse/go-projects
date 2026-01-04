@@ -42,7 +42,7 @@ func (r *InMemoryClientRepository) FindByName(name string) (*client.Client, erro
 	defer r.mu.RUnlock()
 
 	for _, clientAgg := range r.clients {
-		if clientAgg.Name() == name {
+		if clientAgg.Name == name {
 			return clientAgg, nil
 		}
 	}
@@ -54,7 +54,7 @@ func (r *InMemoryClientRepository) Save(clientAgg *client.Client) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.clients[clientAgg.ID().Value()] = clientAgg
+	r.clients[clientAgg.ID.Value()] = clientAgg
 	clientAgg.ClearEvents()
 
 	return nil
@@ -111,6 +111,6 @@ func (r *InMemoryClientRepository) seedData() {
 		[]string{"read", "openid"},
 	)
 
-	r.clients[confidentialClient.ID().Value()] = confidentialClient
-	r.clients[publicClient.ID().Value()] = publicClient
+	r.clients[confidentialClient.ID.Value()] = confidentialClient
+	r.clients[publicClient.ID.Value()] = publicClient
 }

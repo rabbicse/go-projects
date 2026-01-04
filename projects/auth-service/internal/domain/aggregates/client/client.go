@@ -84,7 +84,7 @@ func (c *Client) UpdateAllowedScopes(scopes []string) error {
 		if err != nil {
 			return err
 		}
-		allowedScopes = append(allowedScopes, s)
+		allowedScopes = append(allowedScopes, *s)
 	}
 
 	c.AllowedScopes = allowedScopes
@@ -94,7 +94,7 @@ func (c *Client) UpdateAllowedScopes(scopes []string) error {
 }
 
 func (c *Client) SetSecret(secret string) error {
-	if c.Type == ClientTypePublic {
+	if c.Type == shared.ClientTypePublic {
 		return errors.New("public clients cannot have secrets")
 	}
 
@@ -107,23 +107,23 @@ func (c *Client) SetSecret(secret string) error {
 		return err
 	}
 
-	c.secretHash = string(hash)
+	c.SecretHash = string(hash)
 	c.UpdatedAt = time.Now()
 
 	return nil
 }
 
 func (c *Client) Authenticate(secret string) error {
-	if c.Type == ClientTypePublic {
+	if c.Type == shared.ClientTypePublic {
 		// Public clients don't require authentication
 		return nil
 	}
 
-	if c.secretHash == "" {
+	if c.SecretHash == "" {
 		return errors.New("client has no secret configured")
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(c.secretHash), []byte(secret))
+	err := bcrypt.CompareHashAndPassword([]byte(c.SecretHash), []byte(secret))
 	if err != nil {
 		return errors.New("invalid client credentials")
 	}

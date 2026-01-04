@@ -7,11 +7,32 @@ import (
 	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 )
 
-// TokenFactory creates and reconstitutes Token aggregates
+// TokenFactory is exported (starts with capital T)
 type TokenFactory struct{}
 
+// NewTokenFactory creates a new TokenFactory instance (exported)
 func NewTokenFactory() *TokenFactory {
 	return &TokenFactory{}
+}
+
+// CreateToken creates a new token with the specified parameters
+func (f *TokenFactory) CreateToken(
+	clientID string,
+	userID string,
+	scopes []string,
+	tokenType string,
+	expiresIn time.Duration,
+	includeRefreshToken bool,
+) (*Token, error) {
+
+	// Create token type value object
+	tokenTypeVO, err := valueobjects.NewTokenType(tokenType)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delegate to the aggregate's NewToken function
+	return NewToken(clientID, userID, scopes, tokenTypeVO, expiresIn, includeRefreshToken)
 }
 
 // Reconstitute recreates a Token aggregate from persistence
@@ -27,12 +48,13 @@ func (f *TokenFactory) Reconstitute(
 	revokedAt *time.Time,
 ) (*Token, error) {
 
-	accessTokenVO, err := valueobjects.NewAccessToken(accessToken)
+	// Create value objects
+	tokenTypeVO, err := valueobjects.NewTokenType(tokenType)
 	if err != nil {
 		return nil, err
 	}
 
-	tokenTypeVO, err := valueobjects.NewTokenType(tokenType)
+	accessTokenVO, err := valueobjects.NewAccessToken(accessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -42,12 +64,12 @@ func (f *TokenFactory) Reconstitute(
 		return nil, err
 	}
 
-	cid, err := valueobjects.NewClientID(clientID)
+	clientIDVO, err := valueobjects.NewClientID(clientID)
 	if err != nil {
 		return nil, err
 	}
 
-	uid, err := valueobjects.NewUserID(userID)
+	userIDVO, err := valueobjects.NewUserID(userID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,22 +80,22 @@ func (f *TokenFactory) Reconstitute(
 		if err != nil {
 			return nil, err
 		}
-		scopeObjs = append(scopeObjs, s)
+		scopeObjs = append(scopeObjs, *s)
 	}
 
 	token := &Token{
-		accessToken: accessTokenVO,
+		accessToken: *accessTokenVO,
 		tokenType:   tokenTypeVO,
-		expiresIn:   expiry,
+		expiresIn:   *expiry,
 		scopes:      scopeObjs,
-		clientID:    cid,
-		userID:      uid,
+		clientID:    *clientIDVO,
+		userID:      userIDVO,
 		issuedAt:    issuedAt,
 		revokedAt:   revokedAt,
 		events:      []shared.DomainEvent{},
 	}
 
-	// Reconstitute refresh token if present
+	// Add refresh token if present
 	if refreshToken != "" {
 		refreshTokenVO, err := valueobjects.NewRefreshToken(refreshToken)
 		if err != nil {

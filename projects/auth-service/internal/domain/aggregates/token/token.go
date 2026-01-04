@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rabbicse/auth-service/internal/domain/shared"
+	"github.com/rabbicse/auth-service/internal/domain/shared/events"
 	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 )
 
@@ -53,7 +54,7 @@ func NewToken(
 		if err != nil {
 			return nil, err
 		}
-		scopeObjs = append(scopeObjs, s)
+		scopeObjs = append(scopeObjs, *s)
 	}
 
 	expiry, err := valueobjects.NewTokenExpiry(int(expiresIn.Seconds()))
@@ -73,14 +74,14 @@ func NewToken(
 	}
 
 	token := &Token{
-		accessToken: accessTokenVO,
+		accessToken: *accessTokenVO,
 		tokenType:   tokenType,
-		expiresIn:   expiry,
+		expiresIn:   *expiry,
 		scopes:      scopeObjs,
-		clientID:    cid,
+		clientID:    *cid,
 		userID:      uid,
 		issuedAt:    time.Now(),
-		events:      []DomainEvent{},
+		events:      []shared.DomainEvent{},
 	}
 
 	// Generate refresh token if requested
@@ -101,17 +102,17 @@ func NewToken(
 		}
 
 		token.refreshToken = &refreshTokenVO
-		token.expiresIn = refreshExpiry
+		token.expiresIn = *refreshExpiry
 	}
 
-	token.AddEvent(TokenIssued{
-		TokenType:    token.tokenType.Value(),
-		AccessToken:  token.accessToken.Value(),
+	token.AddEvent(events.TokenIssued{
+		TokenType:    token.tokenType.Value,
+		AccessToken:  token.accessToken.Value,
 		RefreshToken: token.RefreshTokenValue(),
 		ClientID:     token.clientID.Value(),
 		UserID:       token.userID.Value(),
 		Scopes:       token.ScopesString(),
-		ExpiresIn:    token.expiresIn.Value(),
+		ExpiresIn:    token.expiresIn.Value,
 	})
 
 	return token, nil
@@ -130,7 +131,7 @@ func (t *Token) RefreshTokenValue() string {
 	if t.refreshToken == nil {
 		return ""
 	}
-	return t.refreshToken.Value()
+	return t.refreshToken.Value
 }
 
 func (t *Token) TokenType() valueobjects.TokenType {
@@ -179,7 +180,7 @@ func (t *Token) Validate() error {
 }
 
 func (t *Token) IsExpired() bool {
-	expiryTime := t.issuedAt.Add(time.Duration(t.expiresIn.Value()) * time.Second)
+	expiryTime := t.issuedAt.Add(time.Duration(t.expiresIn.Value) * time.Second)
 	return time.Now().After(expiryTime)
 }
 
@@ -187,8 +188,8 @@ func (t *Token) Revoke() {
 	now := time.Now()
 	t.revokedAt = &now
 
-	t.AddEvent(TokenRevoked{
-		AccessToken: t.accessToken.Value(),
+	t.AddEvent(events.TokenRevoked{
+		AccessToken: t.accessToken.Value,
 		ClientID:    t.clientID.Value(),
 		UserID:      t.userID.Value(),
 		RevokedAt:   now,
@@ -232,16 +233,16 @@ func (t *Token) Refresh(newScopes []string) (*Token, error) {
 		t.userID.Value(),
 		scopesToUse,
 		t.tokenType,
-		time.Duration(t.expiresIn.Value())*time.Second,
+		time.Duration(t.expiresIn.Value)*time.Second,
 		true,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	t.AddEvent(TokenRefreshed{
-		OldAccessToken: t.accessToken.Value(),
-		NewAccessToken: newToken.accessToken.Value(),
+	t.AddEvent(events.TokenRefreshed{
+		OldAccessToken: t.accessToken.Value,
+		NewAccessToken: newToken.accessToken.Value,
 		ClientID:       t.clientID.Value(),
 		UserID:         t.userID.Value(),
 	})

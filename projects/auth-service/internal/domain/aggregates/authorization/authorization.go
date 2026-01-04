@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/rabbicse/auth-service/internal/domain/shared"
+	"github.com/rabbicse/auth-service/internal/domain/shared/events"
 	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 )
 
@@ -57,7 +58,7 @@ func NewAuthorization(
 		if err != nil {
 			return nil, err
 		}
-		scopeObjs = append(scopeObjs, s)
+		scopeObjs = append(scopeObjs, *s)
 	}
 
 	// Generate authorization code
@@ -72,18 +73,18 @@ func NewAuthorization(
 	}
 
 	auth := &Authorization{
-		code:        authCode,
-		clientID:    cid,
+		code:        *authCode,
+		clientID:    *cid,
 		userID:      uid,
-		redirectURI: redirect,
+		redirectURI: *redirect,
 		scopes:      scopeObjs,
 		expiresAt:   time.Now().Add(10 * time.Minute), // RFC 6749: short-lived
 		used:        false,
-		createdAt:   time.Now(),
-		events:      []DomainEvent{},
+		CreatedAt:   time.Now(),
+		events:      []shared.DomainEvent{},
 	}
 
-	auth.AddEvent(AuthorizationCreated{
+	auth.AddEvent(events.AuthorizationCreated{
 		Code:        auth.code.Value(),
 		ClientID:    auth.clientID.Value(),
 		UserID:      auth.userID.Value(),
@@ -148,7 +149,7 @@ func (a *Authorization) MarkAsUsed() error {
 
 	a.used = true
 
-	a.AddEvent(AuthorizationUsed{
+	a.AddEvent(events.AuthorizationUsed{
 		Code:     a.code.Value(),
 		ClientID: a.clientID.Value(),
 		UserID:   a.userID.Value(),
@@ -163,7 +164,7 @@ func (a *Authorization) VerifyClient(clientID string) error {
 		return err
 	}
 
-	if !a.clientID.Equals(cid) {
+	if !a.clientID.Equals(*cid) {
 		return errors.New("authorization code issued to different client")
 	}
 
@@ -176,7 +177,7 @@ func (a *Authorization) VerifyRedirectURI(redirectURI string) error {
 		return err
 	}
 
-	if !a.redirectURI.Equals(uri) {
+	if !a.redirectURI.Equals(*uri) {
 		return errors.New("redirect URI mismatch")
 	}
 

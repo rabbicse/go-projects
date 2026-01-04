@@ -1,8 +1,9 @@
 package repositories
 
 import (
-	"go/token"
 	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
 )
 
 // TokenRepository defines the interface for Token aggregate persistence

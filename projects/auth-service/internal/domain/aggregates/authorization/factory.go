@@ -1,10 +1,10 @@
 package authorization
 
 import (
-	"oauth-ddd/internal/domain/valueobjects"
 	"time"
 
 	"github.com/rabbicse/auth-service/internal/domain/shared"
+	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
 )
 
 // AuthorizationFactory creates and reconstitutes Authorization aggregates
@@ -52,14 +52,14 @@ func (f *AuthorizationFactory) Reconstitute(
 		if err != nil {
 			return nil, err
 		}
-		scopeObjs = append(scopeObjs, s)
+		scopeObjs = append(scopeObjs, *s)
 	}
 
 	return &Authorization{
-		code:        authCode,
-		clientID:    cid,
+		code:        *authCode,
+		clientID:    *cid,
 		userID:      uid,
-		redirectURI: redirect,
+		redirectURI: *redirect,
 		scopes:      scopeObjs,
 		expiresAt:   expiresAt,
 		used:        used,
