@@ -7,7 +7,7 @@ import (
 )
 
 type TokenSigner interface {
-	Sign(claims any) (string, error)
+	Sign(claims IDTokenClaims) (string, error)
 }
 
 type OIDCService struct {

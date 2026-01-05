@@ -30,14 +30,18 @@ func (s *TokenService) Authorize(ctx context.Context, req AuthorizeRequest) (*Au
 
 func NewTokenService(
 	clientRepo client.Repository,
+	userRepo user.Repository,
 	authCodeRepo authcode.Repository,
 	tokenRepo token.Repository,
+	oidc oidc.Service,
 	clock func() time.Time,
 ) *TokenService {
 	return &TokenService{
 		clientRepo:   clientRepo,
+		userRepo:     userRepo,
 		authCodeRepo: authCodeRepo,
 		tokenRepo:    tokenRepo,
+		oidc:         oidc,
 		clock:        clock,
 	}
 }

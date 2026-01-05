@@ -27,3 +27,8 @@ func (s *RSASigner) Sign(claims oidc.IDTokenClaims) (string, error) {
 
 	return token.SignedString(s.key)
 }
+
+// func (s *RSASigner) Sign(claims jwt.Claims) (string, error) {
+// 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+// 	return token.SignedString(s.key)
+// }

@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
 set -e
 
+jwt_decode_part() {
+  part="$1"
+  len=$((${#part} % 4))
+  if [ $len -eq 2 ]; then part="${part}=="
+  elif [ $len -eq 3 ]; then part="${part}="
+  elif [ $len -ne 0 ]; then echo "Invalid base64url"; return 1
+  fi
+  echo "$part" | tr '_-' '/+' | base64 -d 2>/dev/null
+}
+
+
 BASE_URL="http://localhost:8080"
 CLIENT_ID="client-123"
 CLIENT_SECRET="secret"
 REDIRECT_URI="http://localhost:3000/callback"
 SCOPE="openid email profile"
 STATE="xyz123"
+
 
 echo "=============================="
 echo "1. OIDC Discovery"
@@ -69,14 +81,38 @@ TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/token" \
 echo "$TOKEN_RESPONSE" | jq .
 
 ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r .access_token)
-ID_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r .id_token)
+# ID_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r .id_token)
+ID_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r .IDToken)
+
 
 echo
 echo "=============================="
 echo "5. Decode ID Token"
 echo "=============================="
-echo "$ID_TOKEN" | awk -F. '{print $1}' | base64 -d 2>/dev/null | jq .
-echo "$ID_TOKEN" | awk -F. '{print $2}' | base64 -d 2>/dev/null | jq .
+
+echo "ID_TOKEN=[$ID_TOKEN]"
+
+# HEADER=$(echo "$ID_TOKEN" | cut -d. -f1)
+# jwt_decode_part "$HEADER" | jq .
+
+# echo "Header:"
+# jwt_decode_part "$HEADER" | jq .
+
+# echo
+# echo "Payload:"
+# jwt_decode_part "$PAYLOAD" | jq .
+
+
+
+echo "Header:"
+printf '%s' "$ID_TOKEN" | cut -d. -f1 | tr '_-' '/+' | awk '{printf "%s==", $0}' | base64 -d 2>/dev/null | jq .
+
+echo
+echo "Payload:"
+printf '%s' "$ID_TOKEN" | cut -d. -f2 | tr '_-' '/+' | awk '{printf "%s==", $0}' | base64 -d 2>/dev/null | jq .
+
+
+
 
 echo
 echo "=============================="
