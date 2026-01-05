@@ -9,7 +9,11 @@ func Register(
 	r *gin.Engine,
 	authorize *handlers.AuthorizeHandler,
 	token *handlers.TokenHandler,
+	oidc *handlers.OIDCHandler,
+	jwks *handlers.JWKSHandler,
 ) {
 	r.GET("/authorize", authorize.Handle)
 	r.POST("/token", token.Handle)
+	r.GET("/.well-known/openid-configuration", oidc.Discovery)
+	r.GET("/jwks.json", jwks.Handle)
 }

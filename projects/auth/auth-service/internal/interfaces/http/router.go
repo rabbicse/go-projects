@@ -9,6 +9,8 @@ import (
 func NewRouter(
 	authorize *handlers.AuthorizeHandler,
 	token *handlers.TokenHandler,
+	oidc *handlers.OIDCHandler,
+	jwks *handlers.JWKSHandler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -21,7 +23,7 @@ func NewRouter(
 		})
 	})
 
-	routes.Register(r, authorize, token)
+	routes.Register(r, authorize, token, oidc, jwks)
 
 	return r
 }

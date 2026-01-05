@@ -7,15 +7,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rabbicse/auth-service/internal/application/oidc"
 	"github.com/rabbicse/auth-service/internal/domain/authcode"
 	"github.com/rabbicse/auth-service/internal/domain/client"
 	"github.com/rabbicse/auth-service/internal/domain/token"
+	"github.com/rabbicse/auth-service/internal/domain/user"
 )
 
 type TokenService struct {
 	clientRepo   client.Repository
+	userRepo     user.Repository
 	authCodeRepo authcode.Repository
 	tokenRepo    token.Repository
+	oidc         oidc.Service
 	clock        func() time.Time
 }
 
@@ -98,12 +102,34 @@ func (s *TokenService) Token(
 		return nil, err
 	}
 
+	var idToken string
+
+	for _, scope := range authCode.Scopes {
+		if scope == "openid" {
+			user, err := s.userRepo.FindByID(ctx, authCode.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			idToken, err = s.oidc.GenerateIDToken(
+				user,
+				c.ID,
+				authCode.Scopes,
+			)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+
 	return &TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		Scope:        strings.Join(authCode.Scopes, " "),
+		IDToken:      idToken, // ✅ now populated
 	}, nil
 }
 
