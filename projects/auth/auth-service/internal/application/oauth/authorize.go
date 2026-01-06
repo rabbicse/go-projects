@@ -17,11 +17,6 @@ type OAuthService struct {
 	clock        func() time.Time
 }
 
-// Token implements Service.
-func (s *OAuthService) Token(ctx context.Context, req TokenRequest) (*TokenResponse, error) {
-	panic("unimplemented")
-}
-
 func NewOAuthService(
 	clientRepo client.Repository,
 	authCodeRepo authcode.Repository,

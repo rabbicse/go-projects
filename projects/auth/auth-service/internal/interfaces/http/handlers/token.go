@@ -8,10 +8,10 @@ import (
 )
 
 type TokenHandler struct {
-	oauth oauth.Service
+	oauth oauth.TokenService
 }
 
-func NewTokenHandler(oauth oauth.Service) *TokenHandler {
+func NewTokenHandler(oauth oauth.TokenService) *TokenHandler {
 	return &TokenHandler{oauth: oauth}
 }
 

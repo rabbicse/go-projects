@@ -8,10 +8,10 @@ import (
 )
 
 type AuthorizeHandler struct {
-	oauth oauth.Service
+	oauth oauth.AuthorizationService
 }
 
-func NewAuthorizeHandler(oauth oauth.Service) *AuthorizeHandler {
+func NewAuthorizeHandler(oauth oauth.AuthorizationService) *AuthorizeHandler {
 	return &AuthorizeHandler{oauth: oauth}
 }
 

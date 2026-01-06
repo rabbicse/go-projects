@@ -14,18 +14,13 @@ import (
 	"github.com/rabbicse/auth-service/internal/domain/user"
 )
 
-type TokenService struct {
+type TokenServiceImpl struct {
 	clientRepo   client.Repository
 	userRepo     user.Repository
 	authCodeRepo authcode.Repository
 	tokenRepo    token.Repository
 	oidc         oidc.Service
 	clock        func() time.Time
-}
-
-// Authorize implements Service.
-func (s *TokenService) Authorize(ctx context.Context, req AuthorizeRequest) (*AuthorizeResponse, error) {
-	panic("unimplemented")
 }
 
 func NewTokenService(
@@ -35,8 +30,8 @@ func NewTokenService(
 	tokenRepo token.Repository,
 	oidc oidc.Service,
 	clock func() time.Time,
-) *TokenService {
-	return &TokenService{
+) *TokenServiceImpl {
+	return &TokenServiceImpl{
 		clientRepo:   clientRepo,
 		userRepo:     userRepo,
 		authCodeRepo: authCodeRepo,
@@ -46,7 +41,7 @@ func NewTokenService(
 	}
 }
 
-func (s *TokenService) Token(
+func (s *TokenServiceImpl) Token(
 	ctx context.Context,
 	req TokenRequest,
 ) (*TokenResponse, error) {
