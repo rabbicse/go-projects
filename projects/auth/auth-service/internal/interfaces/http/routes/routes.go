@@ -11,9 +11,12 @@ func Register(
 	token *handlers.TokenHandler,
 	oidc *handlers.OIDCHandler,
 	jwks *handlers.JWKSHandler,
+	loginHandler *handlers.LoginHandler,
 ) {
 	r.GET("/authorize", authorize.Handle)
 	r.POST("/token", token.Handle)
 	r.GET("/.well-known/openid-configuration", oidc.Discovery)
 	r.GET("/jwks.json", jwks.Handle)
+	r.POST("/login/challenge", loginHandler.Start)
+	r.POST("/login/verify", loginHandler.Verify)
 }
