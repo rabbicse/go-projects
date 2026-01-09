@@ -6,7 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/rabbicse/auth-service/internal/domain/challenge"
+	authchallenge "github.com/rabbicse/auth-service/internal/domain/challenge"
+	"github.com/rabbicse/auth-service/internal/domain/login"
 	"github.com/rabbicse/auth-service/internal/domain/user"
 	"github.com/rabbicse/auth-service/pkg/helpers"
 )
@@ -16,14 +17,14 @@ var ErrInvalidLogin = errors.New("invalid login")
 type LoginService struct {
 	userRepo      user.Repository
 	challengeRepo interface {
-		Save(*challenge.Challenge)
-		Find(string) (*challenge.Challenge, error)
+		Save(*authchallenge.Challenge)
+		Find(string) (*authchallenge.Challenge, error)
 		MarkUsed(string)
 	}
 	loginTokenService *LoginTokenService
 }
 
-func (s *LoginService) Start(username string) (*challenge.Challenge, []byte, error) {
+func (s *LoginService) Start(username string) (*authchallenge.Challenge, []byte, error) {
 	u, err := s.userRepo.FindByUsername(username)
 	if err != nil {
 		return nil, nil, ErrInvalidLogin
@@ -32,7 +33,7 @@ func (s *LoginService) Start(username string) (*challenge.Challenge, []byte, err
 	challenge := make([]byte, 32)
 	rand.Read(challenge)
 
-	c := &challenge.Challenge{
+	c := &authchallenge.Challenge{
 		ID:        helpers.RandomToken(),
 		UserID:    u.ID,
 		Value:     challenge,
@@ -62,4 +63,16 @@ func (s *LoginService) Verify(username, challengeID string, proof []byte) (strin
 
 	s.challengeRepo.MarkUsed(challengeID)
 	return s.loginTokenService.Issue(u.ID)
+}
+
+func (s *LoginTokenService) Issue(userID string) (string, error) {
+	token := &login.Token{
+		Value:     helpers.RandomToken(), // 256-bit cryptographic random
+		UserID:    userID,
+		ExpiresAt: s.clock().Add(10 * time.Minute),
+		Used:      false,
+	}
+
+	s.repo.Save(token)
+	return token.Value, nil
 }

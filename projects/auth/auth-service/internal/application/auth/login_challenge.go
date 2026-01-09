@@ -9,6 +9,7 @@ import (
 
 	authchallenge "github.com/rabbicse/auth-service/internal/domain/challenge"
 	"github.com/rabbicse/auth-service/internal/domain/user"
+	"github.com/rabbicse/auth-service/pkg/helpers"
 )
 
 var ErrInvalidProof = errors.New("invalid proof")
@@ -60,7 +61,7 @@ func (s *ChallengeLoginService) Verify(
 		return "", ErrInvalidProof
 	}
 
-	expected := computeProof([]byte(u.PasswordVerifier), c.Value)
+	expected := helpers.ComputeProof([]byte(u.PasswordVerifier), c.Value)
 
 	if !hmac.Equal(expected, proof) {
 		return "", ErrInvalidProof
