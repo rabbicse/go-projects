@@ -21,7 +21,7 @@ import (
 type APIGateway struct {
 	app          *fiber.App
 	config       *config.Config
-	redisClient  *redis.Client
+	cacheClient  *redis.ClusterClient
 	loadBalancer *loadbalancer.RoundRobinLoadBalancer
 	rateLimiter  *middleware.RateLimiter
 	cache        *middleware.CacheMiddleware
@@ -30,10 +30,17 @@ type APIGateway struct {
 
 func NewAPIGateway(cfg *config.Config) *APIGateway {
 	// Initialize Redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisAddr,
-		Password: "",
-		DB:       0,
+	// Redis Cluster
+	redisClient := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:          cfg.RedisAddrs,
+		Password:       "", // no password
+		PoolSize:       100,
+		MaxRetries:     3,
+		DialTimeout:    5 * time.Second,
+		ReadTimeout:    3 * time.Second,
+		WriteTimeout:   3 * time.Second,
+		RouteRandomly:  true, // Distribute reads across replicas
+		RouteByLatency: true, // Route to the closest node
 	})
 
 	// Test Redis connection
@@ -62,7 +69,7 @@ func NewAPIGateway(cfg *config.Config) *APIGateway {
 	return &APIGateway{
 		app:          app,
 		config:       cfg,
-		redisClient:  redisClient,
+		cacheClient:  redisClient,
 		loadBalancer: loadBalancer,
 		rateLimiter:  rateLimiter,
 		cache:        cache,
@@ -131,7 +138,7 @@ func (ag *APIGateway) SetupRoutes() {
 
 func (ag *APIGateway) healthCheck(c *fiber.Ctx) error {
 	// Check Redis connection
-	if err := ag.redisClient.Ping(c.Context()).Err(); err != nil {
+	if err := ag.cacheClient.Ping(c.Context()).Err(); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
 			"status":  "unhealthy",
 			"redis":   "disconnected",

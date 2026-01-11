@@ -1,0 +1,5 @@
+# Ignore PostgreSQL data and logs for both nodes
+postgres-1/archive/*
+postgres-1/pgdata/*
+postgres-2/archive/*
+postgres-2/pgdata/*

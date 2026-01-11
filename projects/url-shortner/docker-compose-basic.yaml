@@ -1,5 +1,5 @@
 services:
-  postgres-url-shortener:
+  postgres-url-shortener-1:
     image: postgres:latest
     container_name: postgres-url-shortener
     ports:

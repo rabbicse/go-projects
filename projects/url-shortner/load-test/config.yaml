@@ -1,0 +1,8 @@
+api_base_url: "http://localhost"
+default_timeout: 30s
+max_workers: 1000
+test_users:
+  - id: "load-test-user-1"
+    api_token: "test-token-1"
+  - id: "load-test-user-2" 
+    api_token: "test-token-2"

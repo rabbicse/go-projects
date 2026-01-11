@@ -2,29 +2,48 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisRepo struct {
-	client *redis.Client
+	client *redis.ClusterClient
 }
 
-func NewRedisRepo(host, port string) (*RedisRepo, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     host + ":" + port,
-		Password: "",
-		DB:       0,
-		PoolSize: 100,
+func NewRedisRepo(addrs []string) (*RedisRepo, error) {
+	// client := redis.NewClient(&redis.Options{
+	// 	Addr:     host + ":" + port,
+	// 	Password: "",
+	// 	DB:       0,
+	// 	PoolSize: 100,
+	// })
+
+	// Redis Cluster
+	client := redis.NewClusterClient(&redis.ClusterOptions{
+		Addrs:          addrs,
+		Password:       "", // no password
+		PoolSize:       100,
+		MaxRetries:     3,
+		DialTimeout:    5 * time.Second,
+		ReadTimeout:    3 * time.Second,
+		WriteTimeout:   3 * time.Second,
+		RouteRandomly:  true, // Distribute reads across replicas
+		RouteByLatency: true, // Route to the closest node
 	})
 
+	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, err
+	// Ping the cluster to verify the connection
+	pong, err := client.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Could not connect to Redis Cluster: %v", err)
 	}
+	fmt.Println("Connected to Redis Cluster:", pong)
 
 	return &RedisRepo{client: client}, nil
 }

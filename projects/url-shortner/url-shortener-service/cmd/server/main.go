@@ -40,8 +40,7 @@ func main() {
 	defer postgresRepo.Close()
 
 	redisRepo, err := repository.NewRedisRepo(
-		cfg.Redis.Host,
-		cfg.Redis.Port,
+		cfg.Redis.Addrs,
 	)
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)

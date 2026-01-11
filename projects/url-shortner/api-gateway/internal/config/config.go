@@ -10,7 +10,7 @@ import (
 type Config struct {
 	Port                string
 	BackendServers      []string
-	RedisAddr           string
+	RedisAddrs          []string
 	JWTSecret           string
 	RateLimitRequests   int
 	RateLimitDuration   time.Duration
@@ -23,8 +23,8 @@ type Config struct {
 func LoadConfig() *Config {
 	return &Config{
 		Port:                getEnv("PORT", "3000"),
-		BackendServers:      strings.Split(getEnv("BACKEND_SERVERS", "url-shortener-1:8080,url-shortener-2:8080,url-shortener-3:8080"), ","),
-		RedisAddr:           getEnv("REDIS_ADDR", "redis:6379"),
+		BackendServers:      getEnvSlice("BACKEND_SERVERS", []string{"url-shortener-1:8080,url-shortener-2:8080,url-shortener-3:8080"}),
+		RedisAddrs:          getEnvSlice("REDIS_ADDRS", []string{"redis:6379"}),
 		JWTSecret:           getEnv("JWT_SECRET", "your-super-secret-jwt-key-change-in-production"),
 		RateLimitRequests:   getEnvAsInt("RATE_LIMIT_REQUESTS", 100),
 		RateLimitDuration:   time.Duration(getEnvAsInt("RATE_LIMIT_DURATION", 60)) * time.Second,
@@ -58,4 +58,13 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+// Add this helper function to parse comma-separated strings into slices
+func getEnvSlice(key string, defaultVal []string) []string {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	return strings.Split(val, ",")
 }

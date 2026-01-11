@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"time"
@@ -11,12 +10,10 @@ import (
 	"github.com/rabbicse/auth-service/internal/application/oidc"
 	"github.com/rabbicse/auth-service/internal/config"
 	"github.com/rabbicse/auth-service/internal/domain/client"
-	"github.com/rabbicse/auth-service/internal/domain/user"
 	jwtinfra "github.com/rabbicse/auth-service/internal/infrastructure/jwt"
 	"github.com/rabbicse/auth-service/internal/infrastructure/persistence/memory"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
-	"github.com/rabbicse/auth-service/pkg/helpers"
 )
 
 func main() {
@@ -98,6 +95,9 @@ func main() {
 		loginTokenService,
 	)
 
+	registrationService := auth.NewRegistrationService(userRepo)
+	registerHandler := handlers.NewRegisterHandler(registrationService)
+
 	// ---------------------------
 	// HTTP handlers
 	// ---------------------------
@@ -116,22 +116,23 @@ func main() {
 		oidcHandler,
 		jwksHandler,
 		loginHandler,
+		registerHandler,
 	)
 
-	// 🔴 You MUST create a test user here
-	salt := make([]byte, 16)
-	rand.Read(salt)
+	// // 🔴 You MUST create a test user here
+	// salt := make([]byte, 16)
+	// rand.Read(salt)
 
-	verifier := helpers.DeriveVerifier("password123", salt)
+	// verifier := helpers.DeriveVerifier("password123", salt)
 
-	userRepo.Save(&user.User{
-		ID:               "user-1",
-		Username:         "alice",
-		Salt:             salt,
-		PasswordVerifier: verifier,
-	})
-	u, _ := userRepo.FindByUsername("alice")
-	log.Printf("Created test user: %+v\n", u)
+	// userRepo.Save(&user.User{
+	// 	ID:               "user-1",
+	// 	Username:         "alice",
+	// 	Salt:             salt,
+	// 	PasswordVerifier: verifier,
+	// })
+	// u, _ := userRepo.FindByUsername("alice")
+	// log.Printf("Created test user: %+v\n", u)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Auth server running on %s", addr)

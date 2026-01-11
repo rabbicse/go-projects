@@ -8,11 +8,11 @@ import (
 )
 
 type CacheMiddleware struct {
-	redisClient *redis.Client
+	cacheClient *redis.ClusterClient
 }
 
-func NewCacheMiddleware(redisClient *redis.Client) *CacheMiddleware {
-	return &CacheMiddleware{redisClient: redisClient}
+func NewCacheMiddleware(cacheClient *redis.ClusterClient) *CacheMiddleware {
+	return &CacheMiddleware{cacheClient: cacheClient}
 }
 
 func (cm *CacheMiddleware) Cache(ttl time.Duration) fiber.Handler {
@@ -25,7 +25,7 @@ func (cm *CacheMiddleware) Cache(ttl time.Duration) fiber.Handler {
 		cacheKey := "cache:" + c.OriginalURL()
 
 		// Try to get from cache
-		cached, err := cm.redisClient.Get(c.Context(), cacheKey).Result()
+		cached, err := cm.cacheClient.Get(c.Context(), cacheKey).Result()
 		if err == nil {
 			// Cache hit
 			c.Set("X-Cache", "HIT")
@@ -44,7 +44,7 @@ func (cm *CacheMiddleware) Cache(ttl time.Duration) fiber.Handler {
 		// Cache successful responses
 		if c.Response().StatusCode() == fiber.StatusOK {
 			responseBody := c.Response().Body()
-			cm.redisClient.Set(c.Context(), cacheKey, responseBody, ttl)
+			cm.cacheClient.Set(c.Context(), cacheKey, responseBody, ttl)
 		}
 
 		return nil

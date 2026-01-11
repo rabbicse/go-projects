@@ -45,10 +45,12 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 	return nil, common.ErrNotFound
 }
 
-func (r *UserRepository) Save(u *user.User) {
+func (r *UserRepository) Save(u *user.User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.users[u.Username] = u
+
+	return nil
 }
 
 func (r *UserRepository) FindByUsername(username string) (*user.User, error) {

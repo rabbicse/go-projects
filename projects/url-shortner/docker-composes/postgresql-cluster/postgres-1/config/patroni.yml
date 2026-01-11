@@ -1,0 +1,29 @@
+scope: postgres
+namespace: /db/
+name: postgres-1
+
+restapi:
+  listen: '0.0.0.0:8008'
+  connect_address: 'postgres-1:8008'
+
+etcd:
+  hosts: etcd:2379
+
+bootstrap:
+  dcs:
+    postgresql:
+      listen: 'postgres-1:5432'
+      connect_address: 'postgres-1:5432'
+      data_dir: '/data/pgdata'
+      user: postgresadmin
+      password: admin123
+      dbname: postgresdb
+      replication:
+        username: replicationUser
+        password: replicationPassword
+      parameters:
+        max_wal_senders: 3
+        wal_level: replica
+        archive_mode: on
+        archive_command: 'cp %p /mnt/server/archive/%f'
+        hot_standby: "on"

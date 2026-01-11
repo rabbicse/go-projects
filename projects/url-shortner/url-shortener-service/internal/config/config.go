@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
@@ -18,8 +19,7 @@ type ServerConfig struct {
 }
 
 type RedisConfig struct {
-	Host string
-	Port string
+	Addrs []string
 }
 
 type PostgresConfig struct {
@@ -39,8 +39,7 @@ func LoadConfig() *Config {
 			MachineID: getEnvInt("MACHINE_ID", 0),
 		},
 		Redis: RedisConfig{
-			Host: getEnv("REDIS_HOST", "localhost"),
-			Port: getEnv("REDIS_PORT", "6379"),
+			Addrs: getEnvSlice("REDIS_ADDRS", []string{"localhost:6379"}), // Changed to getEnvSlice
 		},
 		Postgres: PostgresConfig{
 			Host:     getEnv("POSTGRES_HOST", "localhost"),
@@ -67,4 +66,13 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// Add this helper function to parse comma-separated strings into slices
+func getEnvSlice(key string, defaultVal []string) []string {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultVal
+	}
+	return strings.Split(val, ",")
 }

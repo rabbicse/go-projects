@@ -9,11 +9,11 @@ import (
 )
 
 type RateLimiter struct {
-	redisClient *redis.Client
+	cacheClient *redis.ClusterClient
 }
 
-func NewRateLimiter(redisClient *redis.Client) *RateLimiter {
-	return &RateLimiter{redisClient: redisClient}
+func NewRateLimiter(redisClient *redis.ClusterClient) *RateLimiter {
+	return &RateLimiter{cacheClient: redisClient}
 }
 
 func (rl *RateLimiter) RateLimit(requests int, duration time.Duration) fiber.Handler {
@@ -22,7 +22,7 @@ func (rl *RateLimiter) RateLimit(requests int, duration time.Duration) fiber.Han
 		key := "rate_limit:" + clientIP
 
 		// Use Redis for distributed rate limiting
-		count, err := rl.redisClient.Incr(c.Context(), key).Result()
+		count, err := rl.cacheClient.Incr(c.Context(), key).Result()
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error": "Internal server error",
@@ -31,7 +31,7 @@ func (rl *RateLimiter) RateLimit(requests int, duration time.Duration) fiber.Han
 
 		if count == 1 {
 			// Set expiration on first request
-			rl.redisClient.Expire(c.Context(), key, duration)
+			rl.cacheClient.Expire(c.Context(), key, duration)
 		}
 
 		if count > int64(requests) {

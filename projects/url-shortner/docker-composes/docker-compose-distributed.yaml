@@ -1,0 +1,370 @@
+services:
+  # PostgreSQL Master
+  postgres-master:
+    image: postgres:latest
+    container_name: postgres-master
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=url_shortener
+      - POSTGRES_REPLICATION_USER=replicator
+      - POSTGRES_REPLICATION_PASSWORD=replicatorpass
+      - PGDATA=/var/lib/postgresql/data
+      - POSTGRES_INITDB_ARGS=--locale=C.UTF-8
+    volumes:
+      - postgres-master-data:/var/lib/postgresql/data
+      - ./postgres/init-master.sh:/docker-entrypoint-initdb.d/init-master.sh
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # The corrected command with wal_keep_size
+    command: postgres -c wal_keep_size=512MB -c max_wal_senders=10
+
+  # ... (the rest of your services are unchanged) ...
+
+  # PostgreSQL Replica 1
+  postgres-replica-1:
+    image: postgres:latest
+    container_name: postgres-replica-1
+    ports:
+      - "5434:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=url_shortener
+      - PGPASSWORD=replicatorpass
+    volumes:
+      - postgres-replica-1-data:/var/lib/postgresql/data
+      - ./postgres/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+    depends_on:
+      - postgres-master
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Replica 2
+  postgres-replica-2:
+    image: postgres:latest
+    container_name: postgres-replica-2
+    ports:
+      - "5435:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=url_shortener
+      - PGPASSWORD=replicatorpass
+    volumes:
+      - postgres-replica-2-data:/var/lib/postgresql/data
+      - ./postgres/init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+    depends_on:
+      - postgres-master
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ... (the rest of your services are unchanged) ...
+
+  # PgPool Load Balancer
+  pgpool:
+    image: bitnami/pgpool:latest
+    container_name: pgpool
+    ports:
+      - "5432:5432"
+    environment:
+      - PGPOOL_BACKEND_NODES=0:postgres-master:5432,1:postgres-replica-1:5432,2:postgres-replica-2:5432
+      - PGPOOL_SR_CHECK_USER=replicator
+      - PGPOOL_SR_CHECK_PASSWORD=replicatorpass
+      - PGPOOL_HEALTH_CHECK_USERNAME=postgres
+      - PGPOOL_HEALTH_CHECK_PASSWORD=postgres
+      - PGPOOL_ENABLE_LOAD_BALANCING=yes
+      - PGPOOL_NUM_INIT_CHILDREN=100
+      - PGPOOL_MAX_POOL=4
+      - PGPOOL_ADMIN_USERNAME=admin
+      - PGPOOL_ADMIN_PASSWORD=adminpassword
+      - PGPOOL_POSTGRES_USERNAME=postgres
+      - PGPOOL_POSTGRES_PASSWORD=postgres
+      - PGPOOL_USERNAME=postgres
+      - PGPOOL_PASSWORD=postgres
+    depends_on:
+      - postgres-master
+      - postgres-replica-1
+      - postgres-replica-2
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    # healthcheck:
+    #   test: ["CMD", "pg_isready", "-h", "localhost", "-U", "postgres"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+
+  # ... (the rest of your services are unchanged) ...
+
+  # Redis Cluster - 3 instances
+  redis-1:
+    image: redis:latest
+    container_name: redis-1
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000
+    volumes:
+      - redis-data-1:/data
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-2:
+    image: redis:latest
+    container_name: redis-2
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000
+    volumes:
+      - redis-data-2:/data
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-3:
+    image: redis:latest
+    container_name: redis-3
+    ports:
+      - "6381:6379"
+    command: redis-server --appendonly yes --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000
+    volumes:
+      - redis-data-3:/data
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cluster Initialization
+  redis-cluster-init:
+    image: redis:latest
+    container_name: redis-cluster-init
+    depends_on:
+      - redis-1
+      - redis-2
+      - redis-3
+    networks:
+      - url-shortener-network
+    command: >
+      sh -c "
+      sleep 10 &&
+      echo 'yes' | redis-cli --cluster create 
+        redis-1:6379 
+        redis-2:6379 
+        redis-3:6379 
+        --cluster-replicas 0 &&
+      echo 'Redis cluster initialized'"
+    restart: "no"
+
+# URL Shortener Service 1
+  url-shortener-1:
+    build:
+      context: ./url-shortener-service
+      dockerfile: Dockerfile
+    container_name: url-shortener-1
+    environment:
+      - SERVICE_ID=1
+      - REDIS_ADDRS=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_HOST=pgpool
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DBNAME=url_shortener
+      - BASE_URL=http://api-gateway:3001
+      - DATACENTER_ID=1
+      - MACHINE_ID=1
+      - SERVER_PORT=8080
+    # ports:
+    #   - "3001:8080"
+    depends_on:
+      - pgpool
+      - redis-1
+      - redis-2
+      - redis-3
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # URL Shortener Service 2
+  url-shortener-2:
+    build:
+      context: ./url-shortener-service
+      dockerfile: Dockerfile
+    container_name: url-shortener-2
+    environment:
+      - SERVICE_ID=2
+      - REDIS_ADDRS=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_HOST=pgpool
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DBNAME=url_shortener
+      - BASE_URL=http://api-gateway:3001
+      - DATACENTER_ID=1
+      - MACHINE_ID=2
+      - SERVER_PORT=8080
+    # ports:
+      # - "3002:8080"
+    depends_on:
+      - pgpool
+      - redis-1
+      - redis-2
+      - redis-3
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # URL Shortener Service 3
+  url-shortener-3:
+    build:
+      context: ./url-shortener-service
+      dockerfile: Dockerfile
+    container_name: url-shortener-3
+    environment:
+      - SERVICE_ID=3
+      - REDIS_ADDRS=redis-1:6379,redis-2:6379,redis-3:6379
+      - POSTGRES_HOST=pgpool
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DBNAME=url_shortener
+      - BASE_URL=http://api-gateway:3001
+      - DATACENTER_ID=1
+      - MACHINE_ID=3
+      - SERVER_PORT=8080
+    # ports:
+    #   - "3003:8080"
+    depends_on:
+      - pgpool
+      - redis-1
+      - redis-2
+      - redis-3
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "80:3001"
+      # - "443:3001"
+    environment:
+      - PORT=3001
+      - BACKEND_SERVERS=url-shortener-1:8080,url-shortener-2:8080,url-shortener-3:8080
+      - REDIS_ADDRS=redis-1:6379,redis-2:6379,redis-3:6379
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_DURATION=60
+      - CACHE_TTL=300
+      - HEALTH_CHECK_INTERVAL=30
+      - ENABLE_TRACING=false
+    depends_on:
+      - pgpool
+      - redis-1
+      - redis-2
+      - redis-3
+      - url-shortener-1
+      - url-shortener-2
+      - url-shortener-3
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Monitoring (Prometheus + Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3009:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    networks:
+      - url-shortener-network
+    restart: unless-stopped
+
+volumes:
+  postgres-master-data:
+  postgres-replica-1-data:
+  postgres-replica-2-data:
+  redis-data-1:
+  redis-data-2:
+  redis-data-3:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  url-shortener-network:
+    driver: bridge
