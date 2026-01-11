@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/base64"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rabbicse/auth-service/internal/application/auth"
@@ -11,12 +12,27 @@ type LoginHandler struct {
 	svc *auth.LoginService
 }
 
+func NewLoginHandler(svc *auth.LoginService) *LoginHandler {
+	return &LoginHandler{svc}
+}
+
 func (h *LoginHandler) Start(c *gin.Context) {
-	var req struct{ Username string }
-	c.BindJSON(&req)
+	log.Println("LOGIN HANDLER START CALLED")
+
+	var req struct {
+		Username string `json:"username"`
+	}
+	if err := c.BindJSON(&req); err != nil {
+		log.Println("BIND ERROR:", err)
+		c.JSON(400, gin.H{"error": "bad request"})
+		return
+	}
+
+	log.Println("USERNAME RECEIVED:", req.Username)
 
 	chal, salt, err := h.svc.Start(req.Username)
 	if err != nil {
+		log.Println("LOGIN SERVICE START FAILED:", err)
 		c.JSON(401, gin.H{"error": "invalid user"})
 		return
 	}
@@ -29,14 +45,28 @@ func (h *LoginHandler) Start(c *gin.Context) {
 }
 
 func (h *LoginHandler) Verify(c *gin.Context) {
-	var req struct {
-		Username    string
-		ChallengeID string
-		Proof       string
-	}
-	c.BindJSON(&req)
+	log.Println("LOGIN VERIFY HANDLER CALLED")
 
-	proof, _ := base64.RawURLEncoding.DecodeString(req.Proof)
+	var req struct {
+		Username    string `json:"username"`
+		ChallengeID string `json:"challenge_id"`
+		Proof       string `json:"proof"`
+	}
+
+	if err := c.BindJSON(&req); err != nil {
+		log.Println("BIND ERROR:", err)
+		c.JSON(400, gin.H{"error": "bad request"})
+		return
+	}
+
+	log.Printf("REQUEST: %+v\n", req)
+
+	proof, err := base64.RawURLEncoding.DecodeString(req.Proof)
+	if err != nil {
+		log.Println("PROOF BASE64 DECODE FAILED:", err)
+		c.JSON(400, gin.H{"error": "invalid proof encoding"})
+		return
+	}
 
 	loginToken, err := h.svc.Verify(req.Username, req.ChallengeID, proof)
 	if err != nil {

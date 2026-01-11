@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain/common"
@@ -42,4 +43,20 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 		}
 	}
 	return nil, common.ErrNotFound
+}
+
+func (r *UserRepository) Save(u *user.User) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.users[u.Username] = u
+}
+
+func (r *UserRepository) FindByUsername(username string) (*user.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.users[username]
+	if !ok {
+		return nil, errors.New("user not found")
+	}
+	return u, nil
 }

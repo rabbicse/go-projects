@@ -2,17 +2,16 @@ package auth
 
 import (
 	"crypto/rand"
-	"errors"
+	"log"
 	"time"
 
 	"crypto/hmac"
 
 	authchallenge "github.com/rabbicse/auth-service/internal/domain/challenge"
+	"github.com/rabbicse/auth-service/internal/domain/common"
 	"github.com/rabbicse/auth-service/internal/domain/user"
 	"github.com/rabbicse/auth-service/pkg/helpers"
 )
-
-var ErrInvalidProof = errors.New("invalid proof")
 
 type ChallengeLoginService struct {
 	userRepo      user.Repository
@@ -26,21 +25,23 @@ type ChallengeLoginService struct {
 }
 
 func (s *ChallengeLoginService) Start(username string) (*authchallenge.Challenge, []byte, error) {
+	log.Println("LOGIN SERVICE START CALLED")
 	u, err := s.userRepo.FindByUsername(username)
 	if err != nil {
-		return nil, nil, ErrInvalidCredentials
+		return nil, nil, common.ErrInvalidCredentials
 	}
 
 	challenge := make([]byte, 32)
 	rand.Read(challenge)
 
 	c := &authchallenge.Challenge{
-		ID:        generateSecureTokenString(),
+		ID:        helpers.GenerateSecureTokenString(),
 		UserID:    u.ID,
 		Value:     challenge,
 		ExpiresAt: s.clock().Add(2 * time.Minute),
 	}
 
+	log.Println("ABOUT TO SAVE CHALLENGE")
 	s.challengeRepo.Save(c)
 
 	return c, u.Salt, nil
@@ -53,18 +54,18 @@ func (s *ChallengeLoginService) Verify(
 
 	u, err := s.userRepo.FindByUsername(username)
 	if err != nil {
-		return "", ErrInvalidCredentials
+		return "", common.ErrInvalidCredentials
 	}
 
 	c, err := s.challengeRepo.Find(challengeID)
 	if err != nil || c.Used || c.IsExpired(s.clock()) {
-		return "", ErrInvalidProof
+		return "", common.ErrInvalidProof
 	}
 
 	expected := helpers.ComputeProof([]byte(u.PasswordVerifier), c.Value)
 
 	if !hmac.Equal(expected, proof) {
-		return "", ErrInvalidProof
+		return "", common.ErrInvalidProof
 	}
 
 	s.challengeRepo.MarkUsed(challengeID)

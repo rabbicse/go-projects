@@ -2,6 +2,7 @@ package memory
 
 import (
 	"errors"
+	"log"
 	"sync"
 
 	authchallenge "github.com/rabbicse/auth-service/internal/domain/challenge"
@@ -19,14 +20,17 @@ func NewChallengeRepo() *ChallengeRepo {
 func (r *ChallengeRepo) Save(c *authchallenge.Challenge) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	log.Println("CHALLENGE SAVED:", c.ID)
 	r.m[c.ID] = c
 }
 
 func (r *ChallengeRepo) Find(id string) (*authchallenge.Challenge, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	log.Println("CHALLENGE LOOKUP:", id)
 	c, ok := r.m[id]
 	if !ok {
+		log.Println("CHALLENGE NOT FOUND")
 		return nil, errors.New("not found")
 	}
 	return c, nil

@@ -11,6 +11,7 @@ func NewRouter(
 	token *handlers.TokenHandler,
 	oidc *handlers.OIDCHandler,
 	jwks *handlers.JWKSHandler,
+	login *handlers.LoginHandler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -23,7 +24,7 @@ func NewRouter(
 		})
 	})
 
-	routes.Register(r, authorize, token, oidc, jwks)
+	routes.Register(r, authorize, token, oidc, jwks, login)
 
 	return r
 }
