@@ -44,7 +44,7 @@ User {
   salt,
   password_verifier
 }
-
+```
 
 ⸻
 
