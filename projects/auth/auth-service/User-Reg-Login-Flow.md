@@ -2,24 +2,43 @@
 
 This system is built in layered form. Each layer has a single responsibility.
 
+```
 Identity Creation  →  Identity Proof  →  Strong Authentication  →  Authorization  →  Identity Federation
 Registration       →  Login           →  MFA                    →  OAuth 2.0       →  OpenID Connect
+```
 
 Tokens by responsibility:
 
-| Token | Purpose |
-|------|--------|
-| `login_token` | Authentication session |
-| `authorization_code` | OAuth handshake |
-| `access_token` | API authorization |
-| `id_token` | User identity |
-| `refresh_token` | Session continuation |
+| Token                | Purpose                |
+|---------------------|------------------------|
+| `login_token`        | Authentication session |
+| `authorization_code` | OAuth handshake        |
+| `access_token`       | API authorization      |
+| `id_token`           | User identity          |
+| `refresh_token`      | Session continuation   |
 
 ---
 
 ## 1️⃣ Registration Flow (Zero-Knowledge)
 
 Password never leaves the client.
+
+Algorithm:
+
+```text
+salt ← random(16 bytes)
+verifier ← Argon2id(password, salt)
+```
+
+Stored:
+
+```text
+User {
+  username,
+  salt,
+  password_verifier
+}
+```
 
 ```mermaid
 sequenceDiagram
@@ -29,27 +48,22 @@ sequenceDiagram
     C->>C: Generate salt
     C->>C: Derive verifier = Argon2id(password, salt)
     C->>S: POST /users/register {username, email, salt, verifier}
-    S->>S: Store user(salt, verifier)
+    S->>S: Store user (salt, verifier)
     S->>C: 201 Created
+```
+
+---
+
+## 2️⃣ Login Flow (Challenge–Response)
 
 Algorithm:
 
-salt ← random(16 bytes)
+```text
 verifier ← Argon2id(password, salt)
-
-Stored:
-
-User {
-  username,
-  salt,
-  password_verifier
-}
+proof ← HMAC(verifier, challenge)
 ```
 
-⸻
-
-2️⃣ Login Flow (Challenge–Response)
-
+```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Auth Server
@@ -58,53 +72,64 @@ sequenceDiagram
     S->>S: Generate challenge + challenge_id
     S->>C: {challenge, challenge_id, salt}
 
-    C->>C: verifier = Argon2id(password, salt)
+    C->>C: Re-derive verifier
     C->>C: proof = HMAC(verifier, challenge)
 
     C->>S: POST /login/verify {username, challenge_id, proof}
     S->>S: expected = HMAC(stored_verifier, stored_challenge)
     S->>C: login_token
+```
 
 Security:
-	•	Password never transmitted
-	•	Proof valid once
-	•	Replay resistant
-	•	MITM safe
 
-⸻
+- Password never transmitted  
+- Proof is valid only once  
+- Replay resistant  
+- MITM safe  
 
-3️⃣ MFA Flow (Authenticator App / TOTP)
+---
 
+## 3️⃣ MFA Flow (Authenticator App / TOTP)
+
+Enrollment:
+
+```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Auth Server
     participant A as Authenticator App
 
     C->>S: POST /mfa/enroll/start
-    S->>C: QR Code + secret
-    C->>A: Scan QR
+    S->>C: QR Code + Secret
+    C->>A: Scan QR Code
 
-    A->>C: OTP code
+    A->>C: Generate OTP
     C->>S: POST /mfa/enroll/verify {code}
     S->>S: Enable MFA
     S->>C: MFA Enabled
+```
 
 During login:
 
+```mermaid
 sequenceDiagram
+    participant C as Client
+    participant S as Auth Server
+
     C->>S: POST /login/verify
-    S->>C: login_token(auth_level=PASSWORD)
+    S->>C: login_token (auth_level = PASSWORD)
 
     C->>S: POST /mfa/verify {code}
-    S->>C: login_token(auth_level=MFA_VERIFIED)
+    S->>C: login_token (auth_level = MFA_VERIFIED)
+```
 
+---
 
-⸻
+## 4️⃣ OAuth 2.0 Authorization Code Flow
 
-4️⃣ OAuth 2.0 Authorization Code Flow
+OAuth begins only after `login_token` is valid and MFA is passed.
 
-OAuth begins only after login_token is valid and MFA passed.
-
+```mermaid
 sequenceDiagram
     participant C as Client
     participant AS as Authorization Server
@@ -115,12 +140,13 @@ sequenceDiagram
 
     C->>AS: POST /token {authorization_code}
     AS->>C: access_token + refresh_token + id_token
+```
 
+---
 
-⸻
+## 5️⃣ PKCE (Public Clients)
 
-5️⃣ PKCE (Public Clients)
-
+```mermaid
 sequenceDiagram
     participant C as Client
     participant AS as Authorization Server
@@ -133,17 +159,20 @@ sequenceDiagram
 
     C->>AS: /token {authorization_code, code_verifier}
     AS->>C: access_token
+```
 
 Prevents:
-	•	Code interception
-	•	Mobile/SPA attacks
 
-⸻
+- Code interception  
+- Mobile/SPA attacks  
 
-6️⃣ OpenID Connect (OIDC)
+---
+
+## 6️⃣ OpenID Connect (OIDC)
 
 OIDC adds identity on top of OAuth.
 
+```mermaid
 sequenceDiagram
     participant C as Client
     participant AS as Auth Server
@@ -153,9 +182,11 @@ sequenceDiagram
 
     C->>AS: /token
     AS->>C: id_token + access_token
+```
 
-id_token is a JWT:
+`id_token` is a JWT:
 
+```json
 {
   "iss": "https://auth.example.com",
   "sub": "user-123",
@@ -164,12 +195,13 @@ id_token is a JWT:
   "exp": 1700003600,
   "email": "user@example.com"
 }
+```
 
+---
 
-⸻
+## 🧱 Layered Architecture Diagram
 
-🧱 Layered Architecture Diagram
-
+```mermaid
 graph TD
     A[Registration] --> B[Login]
     B --> C[MFA]
@@ -177,34 +209,35 @@ graph TD
     D --> E[OAuth 2.0]
     E --> F[JWT access_token]
     E --> G[OIDC id_token]
+```
 
+---
 
-⸻
+## 🔑 Token Responsibility
 
-🔑 Token Responsibility
+| Token         | Used For              |
+|--------------|----------------------|
+| login_token   | Authentication state |
+| access_token  | API authorization    |
+| id_token      | User identity        |
+| refresh_token | Token renewal        |
 
-Token	Used For
-login_token	Authentication state
-access_token	API authorization
-id_token	User identity
-refresh_token	Token renewal
+---
 
-
-⸻
-
-🏁 Summary
+## 🏁 Summary
 
 You have implemented:
-	•	Zero-knowledge registration
-	•	Cryptographic login proof
-	•	MFA authentication layer
-	•	OAuth 2.0 authorization
-	•	PKCE security for public clients
-	•	OIDC identity federation
-	•	JWT infrastructure
 
-This architecture is equivalent to enterprise identity providers like:
+- Zero-knowledge registration  
+- Cryptographic login proof  
+- MFA authentication layer  
+- OAuth 2.0 authorization  
+- PKCE security for public clients  
+- OIDC identity federation  
+- JWT infrastructure  
 
-Auth0 · Okta · Google Identity · Azure AD
+This architecture is equivalent to enterprise identity providers such as:
 
-but built from first principles, cleanly and correctly.
+**Auth0 · Okta · Google Identity · Azure AD**
+
+Built from first principles, cleanly and correctly.
