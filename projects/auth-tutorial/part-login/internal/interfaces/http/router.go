@@ -1,8 +1,11 @@
 package http
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
+)
 
-func NewRouter() *gin.Engine {
+func NewRouter(registerHandler *handlers.RegisterHandler) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -13,6 +16,8 @@ func NewRouter() *gin.Engine {
 			"status": "ok",
 		})
 	})
+
+	r.POST("/users/register", registerHandler.Register)
 
 	return r
 }

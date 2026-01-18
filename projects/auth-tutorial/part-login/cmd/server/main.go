@@ -4,16 +4,26 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/rabbicse/auth-service/internal/application/authentication"
 	"github.com/rabbicse/auth-service/internal/config"
+	"github.com/rabbicse/auth-service/internal/infrastructure/persistence/memory"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
+	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
 )
 
 func main() {
 	// 1. Load configuration
 	cfg := config.Load()
 
+	// Add user repository and registration service initialization here
+	userRepo := memory.NewUserRepository(nil) // No seed data, we will add users via registration
+	registrationService := authentication.NewUserRegistrationService(userRepo)
+
+	// Initialize registration handler with the service
+	registerHandler := handlers.NewRegisterHandler(registrationService)
+
 	// 2. Create HTTP router
-	router := httpiface.NewRouter()
+	router := httpiface.NewRouter(registerHandler)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
