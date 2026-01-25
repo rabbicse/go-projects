@@ -5,7 +5,9 @@ import (
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
 )
 
-func NewRouter(registerHandler *handlers.RegisterHandler) *gin.Engine {
+func NewRouter(
+	registerHandler *handlers.RegisterHandler,
+	loginHandler *handlers.LoginHandler) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -17,7 +19,12 @@ func NewRouter(registerHandler *handlers.RegisterHandler) *gin.Engine {
 		})
 	})
 
+	// User registration route
 	r.POST("/users/register", registerHandler.Register)
+
+	// Login routes
+	r.POST("/login/challenge", loginHandler.Start)
+	r.POST("/login/verify", loginHandler.Verify)
 
 	return r
 }

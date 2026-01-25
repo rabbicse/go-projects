@@ -22,8 +22,15 @@ func main() {
 	// Initialize registration handler with the service
 	registerHandler := handlers.NewRegisterHandler(registrationService)
 
+	// Initialize login service and handler
+	challengeRepo := memory.NewLoginChallengeRepo()
+	loginTokenRepo := memory.NewLoginTokenRepo()
+	loginTokenService := authentication.NewLoginTokenService(loginTokenRepo)
+	loginService := authentication.NewLoginService(userRepo, challengeRepo, loginTokenService)
+	loginHandler := handlers.NewLoginHandler(loginService)
+
 	// 2. Create HTTP router
-	router := httpiface.NewRouter(registerHandler)
+	router := httpiface.NewRouter(registerHandler, loginHandler)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
