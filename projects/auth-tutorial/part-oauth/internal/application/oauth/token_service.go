@@ -1,0 +1,144 @@
+package oauth
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"strings"
+	"time"
+
+	"github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+	oauthDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/oauth"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/user"
+)
+
+type TokenServiceImpl struct {
+	clientRepo   client.ClientRepository
+	userRepo     user.UserRepository
+	authCodeRepo oauthDomain.AuthorizationCodeRepository
+	tokenRepo    token.Repository
+	oidc         oidc.Service
+	clock        func() time.Time
+}
+
+func NewTokenService(
+	clientRepo client.ClientRepository,
+	userRepo user.UserRepository,
+	authCodeRepo oauthDomain.AuthorizationCodeRepository,
+	tokenRepo token.Repository,
+	// oidc oidc.Service,
+	clock func() time.Time,
+) *TokenServiceImpl {
+	return &TokenServiceImpl{
+		clientRepo:   clientRepo,
+		userRepo:     userRepo,
+		authCodeRepo: authCodeRepo,
+		tokenRepo:    tokenRepo,
+		// oidc:         oidc,
+		clock: clock,
+	}
+}
+
+func (s *TokenServiceImpl) Token(
+	ctx context.Context,
+	req dtos.TokenRequest,
+) (*dtos.TokenResponse, error) {
+
+	if req.GrantType != "authorization_code" {
+		return nil, ErrUnsupportedGrantType
+	}
+
+	// 1. Load client
+	c, err := s.clientRepo.FindByID(ctx, req.ClientID)
+	if err != nil {
+		return nil, ErrInvalidClient
+	}
+
+	// 2. Authenticate client (confidential clients)
+	if !c.IsPublic {
+		if !verifySecret(req.ClientSecret, c.SecretHash) {
+			return nil, ErrClientAuthFailed
+		}
+	}
+
+	// 3. Consume authorization code (one-time)
+	authCode, err := s.authCodeRepo.Consume(ctx, req.Code)
+	if err != nil {
+		return nil, ErrInvalidAuthCode
+	}
+
+	// 4. Validate auth code
+	if authCode.ClientID != c.ID {
+		return nil, ErrInvalidAuthCode
+	}
+
+	if authCode.RedirectURI != req.RedirectURI {
+		return nil, ErrInvalidRedirectURI
+	}
+
+	if authCode.IsExpired(s.clock()) {
+		return nil, ErrInvalidAuthCode
+	}
+
+	// 5. Issue tokens
+	accessToken, _ := generateSecureToken(32)
+	refreshToken, _ := generateSecureToken(32)
+
+	expiresAt := s.clock().Add(1 * time.Hour)
+
+	tok := &token.Token{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ClientID:     c.ID,
+		UserID:       authCode.UserID,
+		Scopes:       authCode.Scopes,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := s.tokenRepo.Save(ctx, tok); err != nil {
+		return nil, err
+	}
+
+	var idToken string
+
+	for _, scope := range authCode.Scopes {
+		if scope == "openid" {
+			user, err := s.userRepo.FindByID(ctx, authCode.UserID)
+			if err != nil {
+				return nil, err
+			}
+
+			idToken, err = s.oidc.GenerateIDToken(
+				user,
+				c.ID,
+				authCode.Scopes,
+			)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+
+	return &dtos.TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
+		Scope:        strings.Join(authCode.Scopes, " "),
+		IDToken:      idToken, // ✅ now populated
+	}, nil
+}
+
+func generateSecureToken(length int) (string, error) {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func verifySecret(raw, hash string) bool {
+	return raw == hash // TEMP – replace with bcrypt
+}
