@@ -7,7 +7,10 @@ import (
 
 func NewRouter(
 	registerHandler *handlers.RegisterHandler,
-	loginHandler *handlers.LoginHandler) *gin.Engine {
+	loginHandler *handlers.LoginHandler,
+	oauthHandler *handlers.AuthorizeHandler,
+	tokenHandler *handlers.TokenHandler,
+) *gin.Engine {
 	r := gin.New()
 
 	r.Use(gin.Logger())
@@ -25,6 +28,10 @@ func NewRouter(
 	// Login routes
 	r.POST("/login/challenge", loginHandler.Start)
 	r.POST("/login/verify", loginHandler.Verify)
+
+	// Oauth 2.0 routes
+	r.GET("/authorize", oauthHandler.Handle)
+	r.POST("/token", tokenHandler.Handle)
 
 	return r
 }

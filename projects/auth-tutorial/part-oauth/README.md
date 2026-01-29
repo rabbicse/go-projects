@@ -601,6 +601,168 @@ func (r *TokenRepository) Revoke(ctx context.Context, accessToken string) error 
 }
 ```
 
+### Interface Layer
+At `/internal/interfaces/http/handlers/oauth_handler.go`
+```golang
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	applicationDtos "github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/application/oauth"
+)
+
+type AuthorizeHandler struct {
+	oauth oauth.OAuthService
+}
+
+func NewAuthorizeHandler(oauth oauth.OAuthService) *AuthorizeHandler {
+	return &AuthorizeHandler{oauth: oauth}
+}
+
+func (h *AuthorizeHandler) Handle(c *gin.Context) {
+	req := applicationDtos.AuthorizationRequest{
+		ResponseType: c.Query("response_type"),
+		ClientID:     c.Query("client_id"),
+		RedirectURI:  c.Query("redirect_uri"),
+		Scope:        c.Query("scope"),
+		State:        c.Query("state"),
+
+		// ⚠️ TEMP: assume user already authenticated
+		UserID: "user-123",
+	}
+
+	resp, err := h.oauth.Authorize(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	redirect := resp.RedirectURI +
+		"?code=" + resp.Code +
+		"&state=" + resp.State
+
+	c.Redirect(http.StatusFound, redirect)
+}
+```
+
+At `/internal/interfaces/http/handlers/token_handler.go`
+```golang
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/application/oauth"
+)
+
+type TokenHandler struct {
+	oauth oauth.TokenService
+}
+
+func NewTokenHandler(oauth oauth.TokenService) *TokenHandler {
+	return &TokenHandler{oauth: oauth}
+}
+
+func (h *TokenHandler) Handle(c *gin.Context) {
+	req := dtos.TokenRequest{
+		GrantType:    c.PostForm("grant_type"),
+		Code:         c.PostForm("code"),
+		RedirectURI:  c.PostForm("redirect_uri"),
+		ClientID:     c.PostForm("client_id"),
+		ClientSecret: c.PostForm("client_secret"),
+	}
+
+	resp, err := h.oauth.Token(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+```
+
+At `/internal/interfaces/http/router.go` add the following lines.
+```golang
+	// Oauth 2.0 routes
+	r.GET("/authorize", oauthHandler.Handle)
+	r.POST("/token", tokenHandler.Handle)
+```
+
+So full file will be.
+```golang
+package http
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
+)
+
+func NewRouter(
+	registerHandler *handlers.RegisterHandler,
+	loginHandler *handlers.LoginHandler,
+	oauthHandler *handlers.AuthorizeHandler,
+	tokenHandler *handlers.TokenHandler,
+) *gin.Engine {
+	r := gin.New()
+
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "ok",
+		})
+	})
+
+	// User registration route
+	r.POST("/users/register", registerHandler.Register)
+
+	// Login routes
+	r.POST("/login/challenge", loginHandler.Start)
+	r.POST("/login/verify", loginHandler.Verify)
+
+	// Oauth 2.0 routes
+	r.GET("/authorize", oauthHandler.Handle)
+	r.POST("/token", tokenHandler.Handle)
+
+	return r
+}
+```
+
+Add or edit the following code block at `main.go`
+```golang
+	// Initialize Oauth 2.0 services and handlers
+	clientRepo := memory.NewClientRepository([]*client.Client{
+		{
+			ID:           "client-123",
+			SecretHash:   "secret", // replace with bcrypt later
+			RedirectURIs: []string{"http://localhost:3000/callback"},
+			Scopes:       []string{"openid", "profile", "email"},
+			GrantTypes:   []client.GrantType{client.GrantAuthorizationCode},
+			IsPublic:     false,
+		},
+	})
+	authCodeRepo := memory.NewAuthCodeRepository()
+	// tokenRepo := memory.NewTokenRepository()
+	oauthService := oauth.NewOAuthService(clientRepo, authCodeRepo, time.Now)
+	// tokenService := oauth.NewTokenService(tokenRepo, time.Now)
+	oAutheHandler := handlers.NewAuthorizeHandler(oauthService)
+	// tokenHandler := handlers.NewTokenHandler(tokenService)
+
+	// 2. Create HTTP router
+	router := httpiface.NewRouter(registerHandler, loginHandler, oAutheHandler)
+```
+
 
 
 
