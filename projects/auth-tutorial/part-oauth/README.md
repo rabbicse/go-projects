@@ -138,6 +138,42 @@ type Repository interface {
 }
 ```
 
+At `/internal/domain/aggregates/token/token.go`
+```golang
+package token
+
+import "time"
+
+type Token struct {
+	AccessToken  string
+	RefreshToken string
+	IDToken      string
+
+	ClientID string
+	UserID   string
+	Scopes   []string
+
+	ExpiresAt time.Time
+}
+
+func (t *Token) IsExpired(now time.Time) bool {
+	return now.After(t.ExpiresAt)
+}
+```
+
+At `/internal/domain/aggregates/token/token_repository.go`
+```golang
+package token
+
+import "context"
+
+type Repository interface {
+	Save(ctx context.Context, token *Token) error
+	FindByAccessToken(ctx context.Context, token string) (*Token, error)
+	Revoke(ctx context.Context, token string) error
+}
+```
+
 ### Application Layer
 At `/internal/application/dtos/authorization_request.go`
 ```golang
@@ -306,8 +342,264 @@ func generateSecureCode(length int) (string, error) {
 }
 ```
 
+Then at `/internal/application/oauth/token_service.go`
+```golang
+package oauth
 
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"strings"
+	"time"
 
+	"github.com/rabbicse/auth-service/internal/application"
+	"github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+	oauthDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/oauth"
+	tokenDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/token"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/user"
+)
+
+type TokenService struct {
+	clientRepo   client.ClientRepository
+	userRepo     user.UserRepository
+	authCodeRepo oauthDomain.AuthorizationCodeRepository
+	tokenRepo    tokenDomain.TokenRepository
+	clock        func() time.Time
+}
+
+func NewTokenService(
+	clientRepo client.ClientRepository,
+	userRepo user.UserRepository,
+	authCodeRepo oauthDomain.AuthorizationCodeRepository,
+	tokenRepo tokenDomain.TokenRepository,
+	clock func() time.Time,
+) *TokenService {
+	return &TokenService{
+		clientRepo:   clientRepo,
+		userRepo:     userRepo,
+		authCodeRepo: authCodeRepo,
+		tokenRepo:    tokenRepo,
+		clock:        clock,
+	}
+}
+
+func (s *TokenService) Token(
+	ctx context.Context,
+	req dtos.TokenRequest,
+) (*dtos.TokenResponse, error) {
+
+	if req.GrantType != "authorization_code" {
+		return nil, application.ErrUnsupportedGrantType
+	}
+
+	// 1. Load client
+	c, err := s.clientRepo.FindByID(ctx, req.ClientID)
+	if err != nil {
+		return nil, application.ErrInvalidClient
+	}
+
+	// 2. Authenticate client (confidential clients)
+	if !c.IsPublic {
+		if !verifySecret(req.ClientSecret, c.SecretHash) {
+			return nil, application.ErrClientAuthFailed
+		}
+	}
+
+	// 3. Get authorization code (one-time)
+	authCode, err := s.authCodeRepo.Get(ctx, req.Code)
+	if err != nil {
+		return nil, application.ErrInvalidAuthCode
+	}
+
+	// 4. Validate auth code
+	if authCode.ClientID != c.ID {
+		return nil, application.ErrInvalidAuthCode
+	}
+
+	if authCode.RedirectURI != req.RedirectURI {
+		return nil, application.ErrInvalidRedirectURI
+	}
+
+	if authCode.IsExpired(s.clock()) {
+		return nil, application.ErrInvalidAuthCode
+	}
+
+	// 5. Issue tokens
+	accessToken, _ := generateSecureToken(32)
+	refreshToken, _ := generateSecureToken(32)
+
+	expiresAt := s.clock().Add(1 * time.Hour)
+
+	tok := &tokenDomain.Token{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ClientID:     c.ID,
+		UserID:       authCode.UserID,
+		Scopes:       authCode.Scopes,
+		ExpiresAt:    expiresAt,
+	}
+
+	if err := s.tokenRepo.Save(ctx, tok); err != nil {
+		return nil, err
+	}
+
+	return &dtos.TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
+		Scope:        strings.Join(authCode.Scopes, " "),
+	}, nil
+}
+
+func generateSecureToken(length int) (string, error) {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func verifySecret(raw, hash string) bool {
+	return raw == hash // TEMP – replace with bcrypt
+}
+```
+
+### Infrastructure Layer
+At `/internal/infrastructure/persistence/memory/client_repository.go`
+```golang
+package memory
+
+import (
+	"context"
+	"sync"
+
+	"github.com/rabbicse/auth-service/internal/domain"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
+)
+
+type ClientRepository struct {
+	mu      sync.RWMutex
+	clients map[string]*client.Client
+}
+
+func NewClientRepository(seed []*client.Client) *ClientRepository {
+	m := make(map[string]*client.Client)
+	for _, c := range seed {
+		m[c.ID] = c
+	}
+	return &ClientRepository{clients: m}
+}
+
+func (r *ClientRepository) FindByID(ctx context.Context, id string) (*client.Client, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	c, ok := r.clients[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return c, nil
+}
+```
+
+At `/internal/infrastructure/persistence/memory/authorization_code_repository.go`
+```golang
+package memory
+
+import (
+	"context"
+	"sync"
+
+	"github.com/rabbicse/auth-service/internal/domain"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/oauth"
+)
+
+type AuthCodeRepository struct {
+	mu    sync.Mutex
+	codes map[string]*oauth.AuthorizationCode
+}
+
+func NewAuthCodeRepository() *AuthCodeRepository {
+	return &AuthCodeRepository{
+		codes: make(map[string]*oauth.AuthorizationCode),
+	}
+}
+
+func (r *AuthCodeRepository) Save(ctx context.Context, code *oauth.AuthorizationCode) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.codes[code.Code] = code
+	return nil
+}
+
+func (r *AuthCodeRepository) Get(ctx context.Context, code string) (*oauth.AuthorizationCode, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ac, ok := r.codes[code]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+
+	delete(r.codes, code) // 🔐 replay protection
+	return ac, nil
+}
+```
+
+At `/internal/infrastructure/persistence/memory/token_repository.go`
+```golang
+package memory
+
+import (
+	"context"
+	"sync"
+
+	"github.com/rabbicse/auth-service/internal/domain"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
+)
+
+type TokenRepository struct {
+	mu     sync.RWMutex
+	tokens map[string]*token.Token
+}
+
+func NewTokenRepository() *TokenRepository {
+	return &TokenRepository{
+		tokens: make(map[string]*token.Token),
+	}
+}
+
+func (r *TokenRepository) Save(ctx context.Context, t *token.Token) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.tokens[t.AccessToken] = t
+	return nil
+}
+
+func (r *TokenRepository) FindByAccessToken(ctx context.Context, accessToken string) (*token.Token, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	t, ok := r.tokens[accessToken]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return t, nil
+}
+
+func (r *TokenRepository) Revoke(ctx context.Context, accessToken string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	delete(r.tokens, accessToken)
+	return nil
+}
+```
 
 
 

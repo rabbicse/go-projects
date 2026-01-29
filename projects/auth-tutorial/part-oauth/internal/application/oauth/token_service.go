@@ -7,18 +7,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rabbicse/auth-service/internal/application"
 	"github.com/rabbicse/auth-service/internal/application/dtos"
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
 	oauthDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/oauth"
+	tokenDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/token"
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/user"
 )
 
-type TokenServiceImpl struct {
+type TokenService struct {
 	clientRepo   client.ClientRepository
 	userRepo     user.UserRepository
 	authCodeRepo oauthDomain.AuthorizationCodeRepository
-	tokenRepo    token.Repository
-	oidc         oidc.Service
+	tokenRepo    tokenDomain.TokenRepository
 	clock        func() time.Time
 }
 
@@ -26,59 +27,57 @@ func NewTokenService(
 	clientRepo client.ClientRepository,
 	userRepo user.UserRepository,
 	authCodeRepo oauthDomain.AuthorizationCodeRepository,
-	tokenRepo token.Repository,
-	// oidc oidc.Service,
+	tokenRepo tokenDomain.TokenRepository,
 	clock func() time.Time,
-) *TokenServiceImpl {
-	return &TokenServiceImpl{
+) *TokenService {
+	return &TokenService{
 		clientRepo:   clientRepo,
 		userRepo:     userRepo,
 		authCodeRepo: authCodeRepo,
 		tokenRepo:    tokenRepo,
-		// oidc:         oidc,
-		clock: clock,
+		clock:        clock,
 	}
 }
 
-func (s *TokenServiceImpl) Token(
+func (s *TokenService) Token(
 	ctx context.Context,
 	req dtos.TokenRequest,
 ) (*dtos.TokenResponse, error) {
 
 	if req.GrantType != "authorization_code" {
-		return nil, ErrUnsupportedGrantType
+		return nil, application.ErrUnsupportedGrantType
 	}
 
 	// 1. Load client
 	c, err := s.clientRepo.FindByID(ctx, req.ClientID)
 	if err != nil {
-		return nil, ErrInvalidClient
+		return nil, application.ErrInvalidClient
 	}
 
 	// 2. Authenticate client (confidential clients)
 	if !c.IsPublic {
 		if !verifySecret(req.ClientSecret, c.SecretHash) {
-			return nil, ErrClientAuthFailed
+			return nil, application.ErrClientAuthFailed
 		}
 	}
 
-	// 3. Consume authorization code (one-time)
-	authCode, err := s.authCodeRepo.Consume(ctx, req.Code)
+	// 3. Get authorization code (one-time)
+	authCode, err := s.authCodeRepo.Get(ctx, req.Code)
 	if err != nil {
-		return nil, ErrInvalidAuthCode
+		return nil, application.ErrInvalidAuthCode
 	}
 
 	// 4. Validate auth code
 	if authCode.ClientID != c.ID {
-		return nil, ErrInvalidAuthCode
+		return nil, application.ErrInvalidAuthCode
 	}
 
 	if authCode.RedirectURI != req.RedirectURI {
-		return nil, ErrInvalidRedirectURI
+		return nil, application.ErrInvalidRedirectURI
 	}
 
 	if authCode.IsExpired(s.clock()) {
-		return nil, ErrInvalidAuthCode
+		return nil, application.ErrInvalidAuthCode
 	}
 
 	// 5. Issue tokens
@@ -87,7 +86,7 @@ func (s *TokenServiceImpl) Token(
 
 	expiresAt := s.clock().Add(1 * time.Hour)
 
-	tok := &token.Token{
+	tok := &tokenDomain.Token{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ClientID:     c.ID,
@@ -100,34 +99,12 @@ func (s *TokenServiceImpl) Token(
 		return nil, err
 	}
 
-	var idToken string
-
-	for _, scope := range authCode.Scopes {
-		if scope == "openid" {
-			user, err := s.userRepo.FindByID(ctx, authCode.UserID)
-			if err != nil {
-				return nil, err
-			}
-
-			idToken, err = s.oidc.GenerateIDToken(
-				user,
-				c.ID,
-				authCode.Scopes,
-			)
-			if err != nil {
-				return nil, err
-			}
-			break
-		}
-	}
-
 	return &dtos.TokenResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		Scope:        strings.Join(authCode.Scopes, " "),
-		IDToken:      idToken, // ✅ now populated
 	}, nil
 }
 
