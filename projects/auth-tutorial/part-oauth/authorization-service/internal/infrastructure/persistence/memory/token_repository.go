@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain"
@@ -19,7 +18,7 @@ func NewTokenRepository() *TokenRepository {
 	}
 }
 
-func (r *TokenRepository) Save(ctx context.Context, t *token.Token) error {
+func (r *TokenRepository) Save(t *token.Token) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -27,7 +26,7 @@ func (r *TokenRepository) Save(ctx context.Context, t *token.Token) error {
 	return nil
 }
 
-func (r *TokenRepository) FindByAccessToken(ctx context.Context, accessToken string) (*token.Token, error) {
+func (r *TokenRepository) FindByAccessToken(accessToken string) (*token.Token, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -38,7 +37,7 @@ func (r *TokenRepository) FindByAccessToken(ctx context.Context, accessToken str
 	return t, nil
 }
 
-func (r *TokenRepository) Revoke(ctx context.Context, accessToken string) error {
+func (r *TokenRepository) Revoke(accessToken string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

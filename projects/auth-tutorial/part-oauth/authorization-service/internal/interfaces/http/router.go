@@ -10,6 +10,7 @@ func NewRouter(
 	loginHandler *handlers.LoginHandler,
 	oauthHandler *handlers.AuthorizeHandler,
 	tokenHandler *handlers.TokenHandler,
+	introspectionHandler *handlers.IntrospectionHandler,
 ) *gin.Engine {
 	r := gin.New()
 
@@ -32,6 +33,8 @@ func NewRouter(
 	// Oauth 2.0 routes
 	r.GET("/authorize", oauthHandler.Handle)
 	r.POST("/token", tokenHandler.Handle)
+
+	r.POST("/oauth/introspect", introspectionHandler.Introspect)
 
 	return r
 }

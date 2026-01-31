@@ -95,7 +95,7 @@ func (s *TokenService) Token(
 		ExpiresAt:    expiresAt,
 	}
 
-	if err := s.tokenRepo.Save(ctx, tok); err != nil {
+	if err := s.tokenRepo.Save(tok); err != nil {
 		return nil, err
 	}
 

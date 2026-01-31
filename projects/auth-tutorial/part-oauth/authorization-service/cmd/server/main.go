@@ -51,8 +51,15 @@ func main() {
 	tokenService := oauth.NewTokenService(clientRepo, userRepo, authCodeRepo, tokenRepo, time.Now)
 	tokenHandler := handlers.NewTokenHandler(tokenService)
 
+	introspectionService := oauth.NewIntrospectionService(
+		tokenRepo,
+		time.Now,
+	)
+
+	introspectionHandler := handlers.NewIntrospectionHandler(introspectionService)
+
 	// 2. Create HTTP router
-	router := httpiface.NewRouter(registerHandler, loginHandler, oAutheHandler, tokenHandler)
+	router := httpiface.NewRouter(registerHandler, loginHandler, oAutheHandler, tokenHandler, introspectionHandler)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
