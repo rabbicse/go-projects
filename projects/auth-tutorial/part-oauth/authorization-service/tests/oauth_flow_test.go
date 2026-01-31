@@ -10,12 +10,13 @@ import (
 )
 
 const (
-	OauthBaseURL = "http://localhost:8080"
-	ClientID     = "client-123"
-	ClientSecret = "secret"
-	RedirectURI  = "http://localhost:3000/callback"
-	Scope        = "profile email"
-	State        = "xyz123"
+	OauthBaseURL    = "http://localhost:8080"
+	ResourceBaseURL = "http://localhost:9090"
+	ClientID        = "client-123"
+	ClientSecret    = "secret"
+	RedirectURI     = "http://localhost:3000/callback"
+	Scope           = "profile email"
+	State           = "xyz123"
 )
 
 func Test_OAuth2_Authorization_Code_Flow(t *testing.T) {
@@ -31,6 +32,7 @@ func Test_OAuth2_Authorization_Code_Flow(t *testing.T) {
 		"&redirect_uri=" + url.QueryEscape(RedirectURI) +
 		"&scope=" + url.QueryEscape(Scope) +
 		"&state=" + State
+	t.Logf("Authorization URL: %v", authURL)
 
 	// We don't follow redirects because we want to capture the code
 	client := &http.Client{
@@ -98,6 +100,7 @@ func Test_OAuth2_Authorization_Code_Flow(t *testing.T) {
 
 	var tokenResp map[string]any
 	json.NewDecoder(resp.Body).Decode(&tokenResp)
+	t.Logf("Token response: %v", tokenResp)
 
 	accessToken, ok := tokenResp["access_token"].(string)
 	if !ok || accessToken == "" {
@@ -111,7 +114,7 @@ func Test_OAuth2_Authorization_Code_Flow(t *testing.T) {
 	// --------------------------------
 	t.Log("3. Accessing protected resource")
 
-	req, err = http.NewRequest("GET", OauthBaseURL+"/protected", nil)
+	req, err = http.NewRequest("GET", ResourceBaseURL+"/protected", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -63,11 +63,9 @@ sequenceDiagram
 ## 1️⃣ Oauth 2.0
 
 ### Domain Layer
-At `/internal/domain/aggregates/client/client.go` 
+At `/internal/domain/aggregates/client/types.go`
 ```golang
 package client
-
-import "slices"
 
 type GrantType string
 
@@ -76,6 +74,11 @@ const (
 	GrantRefreshToken      GrantType = "refresh_token"
 	GrantClientCredentials GrantType = "client_credentials"
 )
+```
+
+At `/internal/domain/aggregates/client/client.go` 
+```golang
+package client
 
 type Client struct {
 	ID           string

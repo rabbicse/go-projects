@@ -2,14 +2,6 @@ package client
 
 import "slices"
 
-type GrantType string
-
-const (
-	GrantAuthorizationCode GrantType = "authorization_code"
-	GrantRefreshToken      GrantType = "refresh_token"
-	GrantClientCredentials GrantType = "client_credentials"
-)
-
 type Client struct {
 	ID           string
 	SecretHash   string
