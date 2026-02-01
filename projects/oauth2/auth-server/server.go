@@ -20,7 +20,7 @@ func main() {
 	app.Get("/authorize", auth.Authorize)
 	app.Get("/access", resource.GrantAccess)
 
-	app.Post("/login", Login)
+	app.Get("/login", Login)
 	app.Post("/consent", auth.RequestApproval)
 	app.Post("/token", auth.GetAccessToken)
 

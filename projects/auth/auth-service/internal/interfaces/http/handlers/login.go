@@ -3,9 +3,11 @@ package handlers
 import (
 	"encoding/base64"
 	"log"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/rabbicse/auth-service/internal/application/auth"
+	"github.com/rabbicse/auth-service/internal/domain/common"
 )
 
 type LoginHandler struct {
@@ -75,4 +77,26 @@ func (h *LoginHandler) Verify(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"login_token": loginToken})
+}
+
+func ExtractLoginToken(c *gin.Context) (string, error) {
+	auth := c.GetHeader("Authorization")
+	if auth == "" {
+		return "", common.ErrMissingLoginToken
+	}
+
+	parts := strings.SplitN(auth, " ", 2)
+	if len(parts) != 2 {
+		return "", common.ErrMissingLoginToken
+	}
+
+	// Accept both:
+	// Authorization: Login <token>
+	// Authorization: Bearer <token>
+	scheme := strings.ToLower(parts[0])
+	if scheme != "login" && scheme != "bearer" {
+		return "", common.ErrMissingLoginToken
+	}
+
+	return strings.TrimSpace(parts[1]), nil
 }

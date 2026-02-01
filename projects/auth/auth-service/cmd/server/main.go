@@ -46,14 +46,6 @@ func main() {
 		},
 	})
 
-	// userRepo := memory.NewUserRepository([]*user.User{
-	// 	{
-	// 		ID:         "user-123",
-	// 		Email:      "user@example.com",
-	// 		IsVerified: true,
-	// 	},
-	// })
-
 	userRepo := memory.NewUserRepository(nil)
 
 	authCodeRepo := memory.NewAuthCodeRepository()
@@ -106,6 +98,12 @@ func main() {
 	oidcHandler := handlers.NewOIDCHandler(issuer)
 	jwksHandler := handlers.NewJWKSHandler(publicJWK)
 	loginHandler := handlers.NewLoginHandler(loginService)
+	mfaService := auth.NewMFAService(userRepo)
+	mfaHandler := handlers.NewMFAHandler(
+		mfaService,
+		loginTokenRepo,
+		loginTokenService,
+	)
 
 	// ---------------------------
 	// Router
@@ -117,22 +115,8 @@ func main() {
 		jwksHandler,
 		loginHandler,
 		registerHandler,
+		mfaHandler,
 	)
-
-	// // 🔴 You MUST create a test user here
-	// salt := make([]byte, 16)
-	// rand.Read(salt)
-
-	// verifier := helpers.DeriveVerifier("password123", salt)
-
-	// userRepo.Save(&user.User{
-	// 	ID:               "user-1",
-	// 	Username:         "alice",
-	// 	Salt:             salt,
-	// 	PasswordVerifier: verifier,
-	// })
-	// u, _ := userRepo.FindByUsername("alice")
-	// log.Printf("Created test user: %+v\n", u)
 
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("Auth server running on %s", addr)

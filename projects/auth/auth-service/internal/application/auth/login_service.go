@@ -95,6 +95,7 @@ func (s *LoginTokenService) Issue(userID string) (string, error) {
 		UserID:    userID,
 		ExpiresAt: s.clock().Add(20 * time.Minute),
 		Used:      false,
+		AuthLevel: login.AuthPassword,
 	}
 
 	s.repo.Save(token)

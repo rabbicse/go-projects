@@ -1,5 +1,8 @@
 # Oauth 2.0 Authorization
 
+## Mermaid 
+- https://mermaid-mind.vercel.app
+
 ## High Level design
 ```mermaid
 sequenceDiagram

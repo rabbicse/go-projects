@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"errors"
 	"sync"
 
@@ -10,45 +9,31 @@ import (
 )
 
 type UserRepository struct {
-	mu    sync.RWMutex
-	users map[string]*user.User
+	mu           sync.RWMutex
+	usersByID    map[string]*user.User
+	usersByName  map[string]*user.User
+	usersByEmail map[string]*user.User
 }
 
 func NewUserRepository(seed []*user.User) *UserRepository {
 	m := make(map[string]*user.User)
+	usersByID := make(map[string]*user.User)
+	usersByEmail := make(map[string]*user.User)
+
 	for _, u := range seed {
 		m[u.ID] = u
+		usersByID[u.ID] = u
+		usersByEmail[u.Email] = u
 	}
-	return &UserRepository{users: m}
-}
-
-func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	u, ok := r.users[id]
-	if !ok {
-		return nil, common.ErrNotFound
-	}
-	return u, nil
-}
-
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	for _, u := range r.users {
-		if u.Email == email {
-			return u, nil
-		}
-	}
-	return nil, common.ErrNotFound
+	return &UserRepository{usersByID: usersByID, usersByName: m, usersByEmail: usersByEmail}
 }
 
 func (r *UserRepository) Save(u *user.User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.users[u.Username] = u
+	r.usersByName[u.Username] = u
+	r.usersByID[u.ID] = u
+	r.usersByEmail[u.Email] = u
 
 	return nil
 }
@@ -56,9 +41,31 @@ func (r *UserRepository) Save(u *user.User) error {
 func (r *UserRepository) FindByUsername(username string) (*user.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	u, ok := r.users[username]
+	u, ok := r.usersByName[username]
 	if !ok {
 		return nil, errors.New("user not found")
+	}
+	return u, nil
+}
+
+func (r *UserRepository) FindByID(id string) (*user.User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	u, ok := r.usersByID[id]
+	if !ok {
+		return nil, common.ErrNotFound
+	}
+	return u, nil
+}
+
+func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	u, ok := r.usersByEmail[email]
+	if !ok {
+		return nil, common.ErrNotFound
 	}
 	return u, nil
 }

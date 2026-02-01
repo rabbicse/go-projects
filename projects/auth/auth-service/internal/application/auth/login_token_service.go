@@ -34,3 +34,14 @@ func NewLoginTokenService(
 		clock: clock,
 	}
 }
+
+// internal/application/auth/login_token_service.go
+func (s *LoginTokenService) UpgradeToMFA(tokenValue string) error {
+	t, err := s.repo.Find(tokenValue)
+	if err != nil {
+		return err
+	}
+	t.AuthLevel = login.AuthMFAVerified
+	s.repo.Save(t)
+	return nil
+}

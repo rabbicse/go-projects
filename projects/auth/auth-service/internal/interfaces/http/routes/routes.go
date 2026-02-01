@@ -13,6 +13,7 @@ func Register(
 	jwks *handlers.JWKSHandler,
 	loginHandler *handlers.LoginHandler,
 	registerHandler *handlers.RegisterHandler,
+	mfa *handlers.MFAHandler,
 ) {
 	r.GET("/authorize", authorize.Handle)
 	r.POST("/token", token.Handle)
@@ -21,4 +22,9 @@ func Register(
 	r.POST("/login/challenge", loginHandler.Start)
 	r.POST("/login/verify", loginHandler.Verify)
 	r.POST("/users/register", registerHandler.Register)
+
+	// MFA routes
+	r.POST("/mfa/enroll/start", mfa.StartEnroll)
+	r.POST("/mfa/enroll/verify", mfa.VerifyEnroll)
+	r.POST("/mfa/verify", mfa.VerifyLogin)
 }

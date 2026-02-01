@@ -27,6 +27,8 @@ func validRequestApproval(c *fiber.Ctx) (ClientId, bool) {
 	state := c.FormValue("state")
 	clientId := ClientId(c.FormValue("client_id"))
 
+	fmt.Printf("RequestApproval: action = %s, state = %s, clientId = %s\n", action, state, clientId)
+
 	storedState := AccessCombinations[clientId].State
 
 	if action == "allow" && state == storedState {

@@ -16,4 +16,5 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrInvalidLogin       = errors.New("invalid login")
 	ErrInvalidLoginToken  = errors.New("invalid login token")
+	ErrMissingLoginToken  = errors.New("missing login token")
 )
