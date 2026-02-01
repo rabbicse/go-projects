@@ -767,6 +767,470 @@ Add or edit the following code block at `main.go`
 ```
 
 
+Almost done! It's time to test application! Before test application just add `Introspection` endpoint temporarily. Later we'll implement `JWT`, `OIDC` and `PKCE`. 
 
+Add `/internal/application/dtos/introspection_response.go`
 
+```golang
+type IntrospectionResponse struct {
+	Active   bool   `json:"active"`
+	Sub      string `json:"sub,omitempty"`
+	ClientID string `json:"client_id,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+	Exp      int64  `json:"exp,omitempty"`
+}
+```
+
+Add `/internal/application/oauth/introspection_service.go`
+ 
+```golang
+package oauth
+
+import (
+	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
+)
+
+type IntrospectionService struct {
+	tokenRepo token.TokenRepository
+	clock     func() time.Time
+}
+
+func NewIntrospectionService(
+	tokenRepo token.TokenRepository,
+	clock func() time.Time,
+) *IntrospectionService {
+	return &IntrospectionService{
+		tokenRepo: tokenRepo,
+		clock:     clock,
+	}
+}
+
+func (s *IntrospectionService) Introspect(accessToken string) (*token.Token, bool) {
+	t, err := s.tokenRepo.FindByAccessToken(accessToken)
+	if err != nil {
+		return nil, false
+	}
+
+	if t.IsExpired(s.clock()) {
+		return nil, false
+	}
+
+	return t, true
+}
+```
+
+At `/internal/interfaces/http/handlers/introspect_handler.go`
+```golang
+package handlers
+
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/application/oauth"
+)
+
+type IntrospectionHandler struct {
+	svc *oauth.IntrospectionService
+}
+
+func NewIntrospectionHandler(svc *oauth.IntrospectionService) *IntrospectionHandler {
+	return &IntrospectionHandler{svc}
+}
+
+func (h *IntrospectionHandler) Introspect(c *gin.Context) {
+
+	// ---- Client authentication (Resource Server) ----
+	clientID, clientSecret, ok := c.Request.BasicAuth()
+	if !ok || !isValidResourceServer(clientID, clientSecret) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid client"})
+		return
+	}
+
+	// ---- Parse token ----
+	var req struct {
+		Token string `json:"token" form:"token"`
+	}
+
+	if err := c.ShouldBind(&req); err != nil || req.Token == "" {
+		c.JSON(http.StatusOK, dtos.IntrospectionResponse{Active: false})
+		return
+	}
+
+	t, active := h.svc.Introspect(req.Token)
+	if !active {
+		c.JSON(http.StatusOK, dtos.IntrospectionResponse{Active: false})
+		return
+	}
+
+	c.JSON(http.StatusOK, dtos.IntrospectionResponse{
+		Active:   true,
+		Sub:      t.UserID,
+		ClientID: t.ClientID,
+		Scope:    strings.Join(t.Scopes, " "),
+		Exp:      t.ExpiresAt.Unix(),
+	})
+}
+
+func isValidResourceServer(id, secret string) bool {
+	return id == "resource-server" && secret == "secret"
+}
+```
+
+At `/internal/interfaces/http/router.go` update
+```golang
+	r.POST("/oauth/introspect", introspectionHandler.Introspect)
+```
+
+## Resource service
+Let's create resource service. Create new directory and project for resource service. This time I'm gonna write only the important part instead of full instruction. 
+writee the following command to create new directory and write the following command.
+```bash
+mkdir resource-service
+cd resource-service
+go mod init github.com/rabbicse/resource-service
+```
+
+At `/internal/application/dtos/introspection_response.go`
+```golang
+package dtos
+
+type IntrospectionResponse struct {
+	Active    bool   `json:"active"`
+	Sub       string `json:"sub"`
+	Scope     string `json:"scope"`
+	ClientID  string `json:"client_id"`
+	ExpiresAt int64  `json:"exp"`
+}
+```
+
+Then at `/internal/application/token/token_validator.go`
+```golang
+package token
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+
+	"github.com/rabbicse/resource-service/internal/application/dtos"
+)
+
+type TokenValidator struct {
+	IntrospectionURL string
+	ClientID         string
+	ClientSecret     string
+}
+
+func (v *TokenValidator) Validate(token string) (*dtos.IntrospectionResponse, error) {
+	body := map[string]string{
+		"token": token,
+	}
+
+	b, _ := json.Marshal(body)
+
+	req, err := http.NewRequest(
+		"POST",
+		v.IntrospectionURL,
+		bytes.NewBuffer(b),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.SetBasicAuth(v.ClientID, v.ClientSecret)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var res dtos.IntrospectionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	if !res.Active {
+		return nil, http.ErrNoCookie
+	}
+
+	return &res, nil
+}
+```
+
+At `/internal/application/handlers/resource.go`
+```golang
+package handlers
+
+import "github.com/gin-gonic/gin"
+
+func ProtectedResource(c *gin.Context) {
+	sub, _ := c.Get("sub")
+	scope, _ := c.Get("scope")
+
+	c.JSON(200, gin.H{
+		"message": "protected resource accessed",
+		"user":    sub,
+		"scope":   scope,
+	})
+}
+```
+
+Add authorization middleware at `/internal/middleware/authorization.go`
+```golang
+package middleware
+
+import (
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/resource-service/internal/application/token"
+)
+
+func AuthorizationMiddleware(validator *token.TokenValidator) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		auth := c.GetHeader("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") {
+			c.AbortWithStatusJSON(401, gin.H{"error": "missing token"})
+			return
+		}
+
+		token := strings.TrimPrefix(auth, "Bearer ")
+
+		introspection, err := validator.Validate(token)
+		if err != nil {
+			c.AbortWithStatusJSON(401, gin.H{"error": "invalid token"})
+			return
+		}
+
+		// Attach user info to context
+		c.Set("sub", introspection.Sub)
+		c.Set("scope", introspection.Scope)
+
+		c.Next()
+	}
+}
+```
+
+Finally at `/cmd/server/main.go`
+```golang
+package main
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/rabbicse/resource-service/internal/application/token"
+	"github.com/rabbicse/resource-service/internal/handlers"
+	"github.com/rabbicse/resource-service/internal/middleware"
+)
+
+func main() {
+	r := gin.Default()
+
+	validator := &token.TokenValidator{
+		IntrospectionURL: "http://localhost:8080/oauth/introspect",
+		ClientID:         "resource-server",
+		ClientSecret:     "secret",
+	}
+
+	r.GET(
+		"/protected",
+		middleware.AuthorizationMiddleware(validator),
+		handlers.ProtectedResource,
+	)
+
+	r.Run(":9090")
+}
+```
+
+Run application by the following command.
+```bash
+go run ./cmd/server
+```
+
+## Test the authorization flow
+At `/internal/tests/oauth_flow_test.go`
+```golang
+package tests
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
+	"testing"
+)
+
+const (
+	OauthBaseURL    = "http://localhost:8080"
+	ResourceBaseURL = "http://localhost:9090"
+	ClientID        = "client-123"
+	ClientSecret    = "secret"
+	RedirectURI     = "http://localhost:3000/callback"
+	Scope           = "profile email"
+	State           = "xyz123"
+)
+
+func Test_OAuth2_Authorization_Code_Flow(t *testing.T) {
+
+	// --------------------------------
+	// 1. Start Authorization Request
+	// --------------------------------
+	t.Log("1. Starting OAuth Authorization")
+
+	authURL := OauthBaseURL + "/authorize?" +
+		"response_type=code" +
+		"&client_id=" + url.QueryEscape(ClientID) +
+		"&redirect_uri=" + url.QueryEscape(RedirectURI) +
+		"&scope=" + url.QueryEscape(Scope) +
+		"&state=" + State
+	t.Logf("Authorization URL: %v", authURL)
+
+	// We don't follow redirects because we want to capture the code
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(authURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Expected redirect, got %d: %s", resp.StatusCode, string(b))
+	}
+
+	location := resp.Header.Get("Location")
+	if location == "" {
+		t.Fatal("No redirect location returned")
+	}
+
+	redirectURL, err := url.Parse(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	code := redirectURL.Query().Get("code")
+	if code == "" {
+		t.Fatal("Authorization code not found in redirect")
+	}
+
+	t.Log("✔ Authorization code:", code)
+
+	// --------------------------------
+	// 2. Exchange Code for Token
+	// --------------------------------
+	t.Log("2. Exchanging authorization code for token")
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("redirect_uri", RedirectURI)
+	form.Set("client_id", ClientID)
+	form.Set("client_secret", ClientSecret)
+
+	req, err := http.NewRequest("POST", OauthBaseURL+"/token", bytes.NewBufferString(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Token exchange failed: %d %s", resp.StatusCode, string(b))
+	}
+
+	var tokenResp map[string]any
+	json.NewDecoder(resp.Body).Decode(&tokenResp)
+	t.Logf("Token response: %v", tokenResp)
+
+	accessToken, ok := tokenResp["access_token"].(string)
+	if !ok || accessToken == "" {
+		t.Fatal("Access token not returned")
+	}
+
+	t.Log("✔ Access token issued")
+
+	// --------------------------------
+	// 3. Use Access Token
+	// --------------------------------
+	t.Log("3. Accessing protected resource")
+
+	req, err = http.NewRequest("GET", ResourceBaseURL+"/protected", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("Protected resource access failed: %d %s", resp.StatusCode, string(b))
+	}
+
+	t.Log("✔ Protected resource accessed")
+
+	// --------------------------------
+	// 4. Replay Attack Test (MUST FAIL)
+	// --------------------------------
+	t.Log("4. Testing replay attack (must fail)")
+
+	req, err = http.NewRequest("POST", OauthBaseURL+"/token", bytes.NewBufferString(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 200 {
+		t.Fatal("Replay attack succeeded, this is a security bug")
+	}
+
+	t.Log("✔ Replay attack correctly blocked")
+}
+```
+
+### Run Test
+Write the following test with the following command.
+```bash
+go test ./tests/oauth_flow_test.go -v
+```
+
+If all test passes then oauth 2.0 flow is gonna be perfect. Happy coding :)
+
+What just happend?
+- Created basic oauth 2.0 flow, grant type-authorization_code, by interacting with resource server and assuming usger is authenticated.
+
+Next steps:
+- Need to integrate with real time application authentication flow
+- Instead of simple token we need to integrate JWT (Json Web Token)
+- OIDC integration
+- PKCE flow with oauth 2.0
+- MFA - Optional step for more secure authentication
 

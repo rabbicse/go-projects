@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/rabbicse/resource-service/internal/domain/dtos"
+	"github.com/rabbicse/resource-service/internal/application/dtos"
 )
 
 type TokenValidator struct {
