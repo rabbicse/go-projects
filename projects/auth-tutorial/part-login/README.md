@@ -1273,10 +1273,10 @@ go test ./tests/registration_login_flow_test.go -v
 
 Login flow is working but still it's vulnerable because we didn't issued login token, just sent random value but didn;t store any expiry which is Login ID Issue. lets implement 
 
-add `/internal/domain/aggregates/login/login_token.go` and write
+add `/internal/domain/aggregates/authentication/login_token.go` and write
 
 ```golang
-package login
+package authentication
 
 import "time"
 
@@ -1305,66 +1305,20 @@ type LoginTokenRepository interface {
 
 Add login token service at `/internal/application/authentication/login_token_service.go`
 ```golang
-package authentication
-
-import (
-	"errors"
-	"time"
-
-	"github.com/rabbicse/auth-service/internal/domain/aggregates/login"
-)
-
 var (
 	ErrInvalidLoginToken = errors.New("invalid login token")
 )
 
 type LoginTokenService struct {
-	repo  *login.LoginTokenRepository
-	clock func() time.Time
-}
-
-// Constructor
-func NewLoginTokenService(
-	repo *login.LoginTokenRepository,
-	clock func() time.Time,
-) *LoginTokenService {
-	return &LoginTokenService{
-		repo:  repo,
-		clock: clock,
-	}
-}
-```
-
-Now add `LoginTokenService` at `/internal/application/authentication/login_token_service.go`
-
-```golang
-package authentication
-
-import (
-	"errors"
-	"time"
-
-	authDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/authentication"
-	"github.com/rabbicse/auth-service/pkg/helpers"
-)
-
-var (
-	ErrInvalidLoginToken = errors.New("invalid login token")
-)
-
-type LoginTokenService struct {
-	repo  authDomain.LoginTokenRepository
-	clock func() time.Time
+	repo authDomain.LoginTokenRepository
 }
 
 // Constructor
 func NewLoginTokenService(
 	repo authDomain.LoginTokenRepository,
-	clock func() time.Time,
 ) *LoginTokenService {
 	return &LoginTokenService{
-		repo:  repo,
-		clock: clock,
+		repo: repo,
 	}
 }
 
@@ -1372,7 +1326,7 @@ func (s *LoginTokenService) Issue(userID string) (string, error) {
 	token := &authDomain.LoginToken{
 		Value:     helpers.RandomToken(), // 256-bit cryptographic random
 		UserID:    userID,
-		ExpiresAt: s.clock().Add(20 * time.Minute),
+		ExpiresAt: time.Now().Add(2 * time.Minute),
 		Used:      false,
 	}
 

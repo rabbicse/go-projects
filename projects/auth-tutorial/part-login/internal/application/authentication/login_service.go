@@ -82,7 +82,6 @@ func (s *LoginService) Verify(username, challengeID string, proof []byte) (strin
 	expected := helpers.ComputeProof(u.PasswordVerifier, c.Value)
 	log.Printf("SERVER expected proof (hex): %x", expected)
 
-	// expected := helpers.ComputeProof(u.PasswordVerifier, c.Value)
 	if !hmac.Equal(expected, proof) {
 		return "", ErrInvalidCredentials
 	}

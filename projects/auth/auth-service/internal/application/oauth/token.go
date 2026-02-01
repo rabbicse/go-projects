@@ -105,7 +105,7 @@ func (s *TokenServiceImpl) Token(
 
 	for _, scope := range authCode.Scopes {
 		if scope == "openid" {
-			user, err := s.userRepo.FindByID(ctx, authCode.UserID)
+			user, err := s.userRepo.FindByID(authCode.UserID)
 			if err != nil {
 				return nil, err
 			}
