@@ -42,7 +42,7 @@ func (s *OAuthService) Authorize(
 	}
 
 	// 2. Load client
-	c, err := s.clientRepo.FindByID(ctx, req.ClientID)
+	c, err := s.clientRepo.FindByID(req.ClientID)
 	if err != nil {
 		return nil, application.ErrInvalidClient
 	}
@@ -76,7 +76,7 @@ func (s *OAuthService) Authorize(
 	}
 
 	// 6. Persist authorization code
-	if err := s.authCodeRepo.Save(ctx, authCode); err != nil {
+	if err := s.authCodeRepo.Save(authCode); err != nil {
 		return nil, err
 	}
 

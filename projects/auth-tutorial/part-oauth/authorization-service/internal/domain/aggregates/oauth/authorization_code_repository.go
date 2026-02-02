@@ -1,8 +1,6 @@
 package oauth
 
-import "context"
-
 type AuthorizationCodeRepository interface {
-	Save(ctx context.Context, code *AuthorizationCode) error
-	Get(ctx context.Context, code string) (*AuthorizationCode, error)
+	Save(code *AuthorizationCode) error
+	Get(code string) (*AuthorizationCode, error)
 }

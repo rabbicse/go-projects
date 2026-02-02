@@ -49,7 +49,7 @@ func (s *TokenService) Token(
 	}
 
 	// 1. Load client
-	c, err := s.clientRepo.FindByID(ctx, req.ClientID)
+	c, err := s.clientRepo.FindByID(req.ClientID)
 	if err != nil {
 		return nil, application.ErrInvalidClient
 	}
@@ -62,7 +62,7 @@ func (s *TokenService) Token(
 	}
 
 	// 3. Get authorization code (one-time)
-	authCode, err := s.authCodeRepo.Get(ctx, req.Code)
+	authCode, err := s.authCodeRepo.Get(req.Code)
 	if err != nil {
 		return nil, application.ErrInvalidAuthCode
 	}

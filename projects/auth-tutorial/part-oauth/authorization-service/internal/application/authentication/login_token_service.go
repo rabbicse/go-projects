@@ -36,3 +36,23 @@ func (s *LoginTokenService) Issue(userID string) (string, error) {
 	s.repo.Save(token)
 	return token.Value, nil
 }
+
+func (s *LoginTokenService) Validate(value string) (*authDomain.LoginToken, error) {
+
+	token, err := s.repo.Find(value)
+	if err != nil {
+		return nil, ErrInvalidLoginToken
+	}
+
+	// Check expiration
+	if token.IsExpired(time.Now()) {
+		return nil, ErrInvalidLoginToken
+	}
+
+	// Optional but recommended:
+	if token.Used {
+		return nil, ErrInvalidLoginToken
+	}
+
+	return token, nil
+}

@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain"
@@ -21,7 +20,7 @@ func NewClientRepository(seed []*client.Client) *ClientRepository {
 	return &ClientRepository{clients: m}
 }
 
-func (r *ClientRepository) FindByID(ctx context.Context, id string) (*client.Client, error) {
+func (r *ClientRepository) FindByID(id string) (*client.Client, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

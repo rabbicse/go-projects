@@ -105,10 +105,8 @@ Add client repository interface at `/internal/domain/aggregates/client/client_re
 ```golang
 package client
 
-import "context"
-
-type Repository interface {
-	FindByID(ctx context.Context, id string) (*Client, error)
+type ClientRepository interface {
+	FindByID(id string) (*Client, error)
 }
 ```
 
@@ -138,7 +136,7 @@ package oauth
 
 import "context"
 
-type Repository interface {
+type AuthorizationCodeRepository interface {
 	Save(ctx context.Context, code *AuthorizationCode) error
 	Get(ctx context.Context, code string) (*AuthorizationCode, error)
 }

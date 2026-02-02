@@ -17,6 +17,8 @@ func NewAuthorizeHandler(oauth *oauth.OAuthService) *AuthorizeHandler {
 }
 
 func (h *AuthorizeHandler) Handle(c *gin.Context) {
+	userID := c.GetString("user_id")
+
 	req := applicationDtos.AuthorizationRequest{
 		ResponseType: c.Query("response_type"),
 		ClientID:     c.Query("client_id"),
@@ -24,8 +26,7 @@ func (h *AuthorizeHandler) Handle(c *gin.Context) {
 		Scope:        c.Query("scope"),
 		State:        c.Query("state"),
 
-		// ⚠️ TEMP: assume user already authenticated
-		UserID: "user-123",
+		UserID: userID,
 	}
 
 	resp, err := h.oauth.Authorize(c.Request.Context(), req)

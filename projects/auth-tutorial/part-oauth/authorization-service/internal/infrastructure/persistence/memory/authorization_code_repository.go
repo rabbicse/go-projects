@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"context"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain"
@@ -19,7 +18,7 @@ func NewAuthCodeRepository() *AuthCodeRepository {
 	}
 }
 
-func (r *AuthCodeRepository) Save(ctx context.Context, code *oauth.AuthorizationCode) error {
+func (r *AuthCodeRepository) Save(code *oauth.AuthorizationCode) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -27,7 +26,7 @@ func (r *AuthCodeRepository) Save(ctx context.Context, code *oauth.Authorization
 	return nil
 }
 
-func (r *AuthCodeRepository) Get(ctx context.Context, code string) (*oauth.AuthorizationCode, error) {
+func (r *AuthCodeRepository) Get(code string) (*oauth.AuthorizationCode, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
