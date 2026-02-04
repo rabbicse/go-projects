@@ -1,0 +1,45 @@
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	applicationDtos "github.com/rabbicse/auth-service/internal/application/dtos"
+	"github.com/rabbicse/auth-service/internal/application/oauth"
+)
+
+type AuthorizeHandler struct {
+	oauth *oauth.OAuthService
+}
+
+func NewAuthorizeHandler(oauth *oauth.OAuthService) *AuthorizeHandler {
+	return &AuthorizeHandler{oauth: oauth}
+}
+
+func (h *AuthorizeHandler) Handle(c *gin.Context) {
+	userID := c.GetString("user_id")
+
+	req := applicationDtos.AuthorizationRequest{
+		ResponseType: c.Query("response_type"),
+		ClientID:     c.Query("client_id"),
+		RedirectURI:  c.Query("redirect_uri"),
+		Scope:        c.Query("scope"),
+		State:        c.Query("state"),
+
+		UserID: userID,
+	}
+
+	resp, err := h.oauth.Authorize(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	redirect := resp.RedirectURI +
+		"?code=" + resp.Code +
+		"&state=" + resp.State
+
+	c.Redirect(http.StatusFound, redirect)
+}
