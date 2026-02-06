@@ -189,9 +189,40 @@ Never generate keys dynamically in production.
 
 ---
 
+# Domain Layer
+At `/internal/domain/valueobjects/access_claims.go`
+```golang
+package valueobjects
+
+import "github.com/golang-jwt/jwt/v5"
+
+type AccessClaims struct {
+	UserID   string         `json:"sub,omitempty"`
+	ClientID string         `json:"client_id,omitempty"`
+	Scope    string         `json:"scope,omitempty"` // space separated
+	Roles    []string       `json:"roles,omitempty"`
+	Extra    map[string]any `json:"-"` // or use private fields + custom Marshal
+	jwt.RegisteredClaims
+}
+```
+
+At `/internal/domain/valueobjects/refresh_token.go`
+```golang
+package valueobjects
+
+import "github.com/golang-jwt/jwt/v5"
+
+type RefreshClaims struct {
+	UserID string `json:"sub,omitempty"`
+	jwt.RegisteredClaims
+}
+```
+
 # 🔑 RSA Key Generation — Implementation
 
 ## Generator (One-Time Operation)
+
+At `/internal/infrastructure/security/keys/rsa_generator.go`
 
 ```go
 package keys
@@ -243,6 +274,56 @@ func GenerateRSA4096(privatePath, publicPath string) error {
     return nil
 }
 ```
+
+Then at `/internal/infrastructure/security/keys/key_loader.go`
+```golang
+package keys
+
+import (
+    "crypto/rsa"
+    "crypto/x509"
+    "encoding/pem"
+    "os"
+    "fmt"
+)
+
+type KeyPair struct {
+    PrivateKey *rsa.PrivateKey
+    PublicKey  *rsa.PublicKey
+    Kid        string
+}
+
+func LoadKeyPair(privatePath string, kid string) (*KeyPair, error) {
+
+    data, err := os.ReadFile(privatePath)
+    if err != nil {
+        return nil, err
+    }
+
+    block, _ := pem.Decode(data)
+    if block == nil {
+        return nil, fmt.Errorf("invalid private key")
+    }
+
+    priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+    if err != nil {
+        return nil, err
+    }
+
+    return &KeyPair{
+        PrivateKey: priv,
+        PublicKey:  &priv.PublicKey,
+        Kid:        kid,
+    }, nil
+}
+```
+
+### Then install the following `jwt` package
+```bash
+go get github.com/golang-jwt/jwt/v5
+```
+
+At `/internal/infrastructure/security/jwt/token_generator.go`
 
 ---
 
