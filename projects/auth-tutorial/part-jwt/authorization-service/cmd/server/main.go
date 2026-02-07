@@ -7,9 +7,12 @@ import (
 
 	"github.com/rabbicse/auth-service/internal/application/authentication"
 	"github.com/rabbicse/auth-service/internal/application/oauth"
+	tokenApp "github.com/rabbicse/auth-service/internal/application/token"
 	"github.com/rabbicse/auth-service/internal/config"
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
 	"github.com/rabbicse/auth-service/internal/infrastructure/persistence/memory"
+	"github.com/rabbicse/auth-service/internal/infrastructure/security/crypto"
+	"github.com/rabbicse/auth-service/internal/infrastructure/security/keys"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
 )
@@ -32,6 +35,23 @@ func main() {
 	loginService := authentication.NewLoginService(userRepo, challengeRepo, loginTokenService)
 	loginHandler := handlers.NewLoginHandler(loginService)
 
+	// Initialize JWT token issuer
+	keyPair, _ := keys.LoadKeyPair(
+		"secrets/private.pem",
+		"kid-2026-01",
+	)
+	signer := crypto.NewRSASigner(
+		keyPair.PrivateKey,
+		keyPair.PublicKey,
+		keyPair.Kid,
+	)
+	refreshStore := memory.NewInMemoryRefreshStore()
+	tokenIssuer := tokenApp.NewTokenIssuerService(
+		signer,
+		refreshStore,
+		"https://auth.mycompany.com",
+	)
+
 	// Initialize Oauth 2.0 services and handlers
 	clientRepo := memory.NewClientRepository([]*client.Client{
 		{
@@ -48,7 +68,7 @@ func main() {
 	oAutheHandler := handlers.NewAuthorizeHandler(oauthService)
 
 	tokenRepo := memory.NewTokenRepository()
-	tokenService := oauth.NewTokenService(clientRepo, userRepo, authCodeRepo, tokenRepo, time.Now)
+	tokenService := oauth.NewTokenService(clientRepo, userRepo, authCodeRepo, tokenRepo, tokenIssuer, time.Now)
 	tokenHandler := handlers.NewTokenHandler(tokenService)
 
 	introspectionService := oauth.NewIntrospectionService(

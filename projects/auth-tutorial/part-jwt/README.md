@@ -190,6 +190,39 @@ Never generate keys dynamically in production.
 ---
 
 # Domain Layer
+Add token signer interface at `/internal/domain/aggregates/token/token_signer.go`
+```golang
+package token
+
+import "crypto/rsa"
+
+type TokenSigner interface {
+	Sign(claims any) (string, error)
+	PublicKey() *rsa.PublicKey
+	Kid() string
+}
+```
+
+Add Token Issuer at `/internal/domain/aggregates/token/token_issuer.go`
+```golang
+package token
+
+import "time"
+
+type TokenIssuer interface {
+	GenerateAccessToken(
+		userID string,
+		clientID string,
+		scopes []string,
+	) (string, time.Time, error)
+
+	GenerateRefreshToken(
+		userID string,
+		clientID string,
+	) (string, error)
+}
+```
+
 At `/internal/domain/valueobjects/access_claims.go`
 ```golang
 package valueobjects
@@ -197,16 +230,16 @@ package valueobjects
 import "github.com/golang-jwt/jwt/v5"
 
 type AccessClaims struct {
-	UserID   string         `json:"sub,omitempty"`
-	ClientID string         `json:"client_id,omitempty"`
-	Scope    string         `json:"scope,omitempty"` // space separated
-	Roles    []string       `json:"roles,omitempty"`
-	Extra    map[string]any `json:"-"` // or use private fields + custom Marshal
+	Sub      string   `json:"sub"`             // user ID or client_id
+	Scope    string   `json:"scope"`           // space-separated or comma
+	Roles    []string `json:"roles,omitempty"` // if you have them
+	ClientID string   `json:"client_id,omitempty"`
+	Jti      string   `json:"jti,omitempty"` // optional unique id
 	jwt.RegisteredClaims
 }
 ```
 
-At `/internal/domain/valueobjects/refresh_token.go`
+At `/internal/domain/valueobjects/refresh_claims.go`
 ```golang
 package valueobjects
 
@@ -215,6 +248,19 @@ import "github.com/golang-jwt/jwt/v5"
 type RefreshClaims struct {
 	UserID string `json:"sub,omitempty"`
 	jwt.RegisteredClaims
+}
+```
+
+Add Refresh Store at `/internal/domain/aggregates/token/refresh_store.go`
+```golang
+package token
+
+import "time"
+
+type RefreshStore interface {
+	Save(token, userID string, ttl time.Duration) error
+	Get(token string) (string, error)
+	Delete(token string) error
 }
 ```
 
@@ -315,6 +361,47 @@ func LoadKeyPair(privatePath string, kid string) (*KeyPair, error) {
         PublicKey:  &priv.PublicKey,
         Kid:        kid,
     }, nil
+}
+```
+
+At `/internal/infrastructure/persistence/memory/refresh_store.go`
+```golang
+package memory
+
+import (
+	"errors"
+	"sync"
+	"time"
+)
+
+type InMemoryRefreshStore struct {
+	data sync.Map
+}
+
+func (s *InMemoryRefreshStore) Save(token, userID string, ttl time.Duration) error {
+
+	s.data.Store(token, userID)
+
+	time.AfterFunc(ttl, func() {
+		s.data.Delete(token)
+	})
+
+	return nil
+}
+
+func (s *InMemoryRefreshStore) Get(token string) (string, error) {
+
+	val, ok := s.data.Load(token)
+	if !ok {
+		return "", errors.New("invalid refresh token")
+	}
+
+	return val.(string), nil
+}
+
+func (s *InMemoryRefreshStore) Delete(token string) error {
+	s.data.Delete(token)
+	return nil
 }
 ```
 

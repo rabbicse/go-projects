@@ -2,8 +2,6 @@ package oauth
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"strings"
 	"time"
 
@@ -11,6 +9,7 @@ import (
 	"github.com/rabbicse/auth-service/internal/application/dtos"
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
 	oauthDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/oauth"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
 	tokenDomain "github.com/rabbicse/auth-service/internal/domain/aggregates/token"
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/user"
 )
@@ -20,6 +19,7 @@ type TokenService struct {
 	userRepo     user.UserRepository
 	authCodeRepo oauthDomain.AuthorizationCodeRepository
 	tokenRepo    tokenDomain.TokenRepository
+	tokenIssuer  token.TokenIssuer
 	clock        func() time.Time
 }
 
@@ -28,6 +28,7 @@ func NewTokenService(
 	userRepo user.UserRepository,
 	authCodeRepo oauthDomain.AuthorizationCodeRepository,
 	tokenRepo tokenDomain.TokenRepository,
+	tokenIssuer token.TokenIssuer,
 	clock func() time.Time,
 ) *TokenService {
 	return &TokenService{
@@ -35,6 +36,7 @@ func NewTokenService(
 		userRepo:     userRepo,
 		authCodeRepo: authCodeRepo,
 		tokenRepo:    tokenRepo,
+		tokenIssuer:  tokenIssuer,
 		clock:        clock,
 	}
 }
@@ -81,10 +83,21 @@ func (s *TokenService) Token(
 	}
 
 	// 5. Issue tokens
-	accessToken, _ := generateSecureToken(32)
-	refreshToken, _ := generateSecureToken(32)
+	// accessToken, _ := generateSecureToken(32)
+	accessToken, expiresAt, err :=
+		s.tokenIssuer.GenerateAccessToken(
+			authCode.UserID,
+			c.ID,
+			authCode.Scopes,
+		)
+	// refreshToken, _ := generateSecureToken(32)
+	refreshToken, err :=
+		s.tokenIssuer.GenerateRefreshToken(
+			authCode.UserID,
+			c.ID,
+		)
 
-	expiresAt := s.clock().Add(1 * time.Hour)
+	// expiresAt := s.clock().Add(1 * time.Hour)
 
 	tok := &tokenDomain.Token{
 		AccessToken:  accessToken,
@@ -106,14 +119,6 @@ func (s *TokenService) Token(
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		Scope:        strings.Join(authCode.Scopes, " "),
 	}, nil
-}
-
-func generateSecureToken(length int) (string, error) {
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func verifySecret(raw, hash string) bool {
