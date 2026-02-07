@@ -1,6 +1,10 @@
 package token
 
-import "time"
+import (
+	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
+)
 
 type TokenIssuer interface {
 	GenerateAccessToken(
@@ -13,4 +17,6 @@ type TokenIssuer interface {
 		userID string,
 		clientID string,
 	) (string, time.Time, error)
+
+	ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error)
 }
