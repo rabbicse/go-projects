@@ -91,7 +91,7 @@ func (s *TokenService) Token(
 			authCode.Scopes,
 		)
 	// refreshToken, _ := generateSecureToken(32)
-	refreshToken, err :=
+	refreshToken, _, err :=
 		s.tokenIssuer.GenerateRefreshToken(
 			authCode.UserID,
 			c.ID,

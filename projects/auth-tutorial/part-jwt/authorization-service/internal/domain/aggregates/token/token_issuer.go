@@ -12,5 +12,5 @@ type TokenIssuer interface {
 	GenerateRefreshToken(
 		userID string,
 		clientID string,
-	) (string, error)
+	) (string, time.Time, error)
 }
