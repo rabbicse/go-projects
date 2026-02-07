@@ -10,15 +10,24 @@ import (
 func main() {
 	r := gin.Default()
 
-	validator := &token.TokenValidator{
-		IntrospectionURL: "http://localhost:8080/oauth/introspect",
-		ClientID:         "resource-server",
-		ClientSecret:     "secret",
-	}
+	// validator := &token.TokenValidator{
+	// 	IntrospectionURL: "http://localhost:8080/oauth/introspect",
+	// 	ClientID:         "resource-server",
+	// 	ClientSecret:     "secret",
+	// }
+
+	validator := token.NewJWTValidator("http://localhost:8080/.well-known/jwks.json",
+		"http://localhost:8080")
+
+	// r.GET(
+	// 	"/protected",
+	// 	middleware.AuthorizationMiddleware(validator),
+	// 	handlers.ProtectedResource,
+	// )
 
 	r.GET(
 		"/protected",
-		middleware.AuthorizationMiddleware(validator),
+		middleware.JWTAuthorizationMiddleware(validator),
 		handlers.ProtectedResource,
 	)
 

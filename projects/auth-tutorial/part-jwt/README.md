@@ -189,40 +189,18 @@ Never generate keys dynamically in production.
 
 ---
 
+## Installation
+Install the following `jwt` package
+```bash
+go get github.com/golang-jwt/jwt/v5
+```
+
+Install the following `jwk` package
+```bash
+go get github.com/lestrrat-go/jwx/v2/jwk
+```
+
 # Domain Layer
-Add token signer interface at `/internal/domain/aggregates/token/token_signer.go`
-```golang
-package token
-
-import "crypto/rsa"
-
-type TokenSigner interface {
-	Sign(claims any) (string, error)
-	PublicKey() *rsa.PublicKey
-	Kid() string
-}
-```
-
-Add Token Issuer at `/internal/domain/aggregates/token/token_issuer.go`
-```golang
-package token
-
-import "time"
-
-type TokenIssuer interface {
-	GenerateAccessToken(
-		userID string,
-		clientID string,
-		scopes []string,
-	) (string, time.Time, error)
-
-	GenerateRefreshToken(
-		userID string,
-		clientID string,
-	) (string, error)
-}
-```
-
 At `/internal/domain/valueobjects/access_claims.go`
 ```golang
 package valueobjects
@@ -264,9 +242,315 @@ type RefreshStore interface {
 }
 ```
 
-# 🔑 RSA Key Generation — Implementation
+Add Refresh Session at `/internal/domain/aggregates/token/refresh_session.go`
+```golang
+package token
 
-## Generator (One-Time Operation)
+import "time"
+
+type RefreshSession struct {
+	Token     string
+	UserID    string
+	ClientID  string
+	ExpiresAt time.Time
+}
+```
+
+At JWT Config at `/internal/domain/aggregates/token/jwt_config.go`
+```golang
+package token
+
+import "time"
+
+type JWTConfig struct {
+	AccessSecret  []byte
+	RefreshSecret []byte        // different secret is strongly recommended
+	AccessTTL     time.Duration // 5–60 min
+	RefreshTTL    time.Duration // 1–14 days
+	Issuer        string        // "https://api.yourdomain.com"
+}
+```
+
+At `/internal/domain/aggregates/token/token_issuer.go` add the following interface.
+```golang
+package token
+
+import (
+	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
+)
+
+type TokenIssuer interface {
+	GenerateAccessToken(
+		userID string,
+		clientID string,
+		scopes []string,
+	) (string, time.Time, error)
+
+	GenerateRefreshToken(
+		userID string,
+		clientID string,
+	) (string, time.Time, error)
+
+	ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error)
+}
+```
+
+At `/internal/domain/aggregates/token/token_signer.go` add the following interface.
+```golang
+package token
+
+import "crypto/rsa"
+
+type TokenSigner interface {
+	Sign(claims any) (string, error)
+	PublicKey() *rsa.PublicKey
+	Kid() string
+}
+```
+
+## Application Layer
+At `/internal/application/token/token_issuer.go` write the implementation at application layer.
+```golang
+package jwt
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
+	"github.com/rabbicse/auth-service/internal/domain/valueobjects"
+)
+
+type TokenIssuerService struct {
+	signer token.TokenSigner
+	store  token.RefreshStore
+	issuer string
+}
+
+func NewTokenIssuerService(signer token.TokenSigner, store token.RefreshStore, issuer string) *TokenIssuerService {
+	return &TokenIssuerService{
+		signer: signer,
+		store:  store,
+		issuer: issuer,
+	}
+}
+
+func (s *TokenIssuerService) GenerateAccessToken(
+	userID string,
+	clientID string,
+	scopes []string,
+) (string, time.Time, error) {
+
+	now := time.Now()
+	exp := now.Add(15 * time.Minute)
+
+	claims := valueobjects.AccessClaims{
+		Scope:    strings.Join(scopes, " "),
+		ClientID: clientID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.NewString(),
+			Subject:   userID,
+			Audience:  []string{clientID},
+			Issuer:    s.issuer,
+			ExpiresAt: jwt.NewNumericDate(exp),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+		},
+	}
+
+	tokenStr, err := s.signer.Sign(claims)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return tokenStr, exp, nil
+}
+
+func (s *TokenIssuerService) GenerateRefreshToken(
+	userID string,
+	clientID string,
+) (string, time.Time, error) {
+
+	tokenStr, err := generateSecureToken(64)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	exp := time.Now().Add(30 * 24 * time.Hour)
+
+	err = s.store.Save(
+		tokenStr,
+		userID,
+		clientID,
+		exp,
+	)
+
+	if err != nil {
+		return "", time.Time{}, err
+	}
+
+	return tokenStr, exp, nil
+}
+
+func (s *TokenIssuerService) ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error) {
+
+	token, err := jwt.ParseWithClaims(
+		tokenStr,
+		&valueobjects.AccessClaims{},
+		func(t *jwt.Token) (interface{}, error) {
+
+			if t.Method != jwt.SigningMethodRS256 {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+
+			return s.signer.PublicKey(), nil
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*valueobjects.AccessClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	return claims, nil
+}
+
+func generateSecureToken(bytes int) (string, error) {
+	b := make([]byte, bytes)
+
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+```
+
+## Infrastructure Layer
+At `/internal/infrastructure/security/crypto/rsa_signer.go`
+```golang
+package crypto
+
+import (
+	"crypto/rsa"
+
+	"github.com/golang-jwt/jwt/v5"
+)
+
+type RSASigner struct {
+	privateKey *rsa.PrivateKey
+	publicKey  *rsa.PublicKey
+	kid        string
+}
+
+func NewRSASigner(
+	priv *rsa.PrivateKey,
+	pub *rsa.PublicKey,
+	kid string,
+) *RSASigner {
+	return &RSASigner{
+		privateKey: priv,
+		publicKey:  pub,
+		kid:        kid,
+	}
+}
+
+func (s *RSASigner) Sign(claims any) (string, error) {
+
+	token := jwt.NewWithClaims(
+		jwt.SigningMethodRS256,
+		claims.(jwt.Claims),
+	)
+
+	token.Header["kid"] = s.kid
+
+	return token.SignedString(s.privateKey)
+}
+
+func (s *RSASigner) PublicKey() *rsa.PublicKey {
+	return s.publicKey
+}
+
+func (s *RSASigner) Kid() string {
+	return s.kid
+}
+```
+
+At `/internal/infrastructure/persistence/memory/refresh_store.go`
+```golang
+package memory
+
+import (
+	"errors"
+	"sync"
+	"time"
+
+	"github.com/rabbicse/auth-service/internal/domain/aggregates/token"
+)
+
+type InMemoryRefreshStore struct {
+	data sync.Map
+}
+
+func NewInMemoryRefreshStore() *InMemoryRefreshStore {
+	return &InMemoryRefreshStore{}
+}
+
+func (s *InMemoryRefreshStore) Save(
+	t string,
+	userID string,
+	clientID string,
+	exp time.Time,
+) error {
+	s.data.Store(t, &token.RefreshSession{
+		Token:     t,
+		UserID:    userID,
+		ClientID:  clientID,
+		ExpiresAt: exp,
+	})
+
+	return nil
+}
+
+func (s *InMemoryRefreshStore) Get(
+	t string,
+) (*token.RefreshSession, error) {
+
+	val, ok := s.data.Load(t)
+	if !ok {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	session := val.(*token.RefreshSession)
+
+	if time.Now().After(session.ExpiresAt) {
+		s.data.Delete(t)
+		return nil, errors.New("expired refresh token")
+	}
+
+	return session, nil
+}
+
+func (s *InMemoryRefreshStore) Delete(t string) error {
+	s.data.Delete(t)
+	return nil
+}
+```
+
+## 🔑 RSA Key Generation — Implementation
+
+### Generator (One-Time Operation)
 
 At `/internal/infrastructure/security/keys/rsa_generator.go`
 
@@ -321,275 +605,178 @@ func GenerateRSA4096(privatePath, publicPath string) error {
 }
 ```
 
+At `/internal/infrastructure/security/keys/key_pair.go`
+```golang
+type KeyPair struct {
+	PrivateKey *rsa.PrivateKey
+	PublicKey  *rsa.PublicKey
+	Kid        string
+}
+```
+
 Then at `/internal/infrastructure/security/keys/key_loader.go`
 ```golang
 package keys
 
 import (
-    "crypto/rsa"
-    "crypto/x509"
-    "encoding/pem"
-    "os"
-    "fmt"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	"os"
 )
-
-type KeyPair struct {
-    PrivateKey *rsa.PrivateKey
-    PublicKey  *rsa.PublicKey
-    Kid        string
-}
 
 func LoadKeyPair(privatePath string, kid string) (*KeyPair, error) {
 
-    data, err := os.ReadFile(privatePath)
-    if err != nil {
-        return nil, err
-    }
-
-    block, _ := pem.Decode(data)
-    if block == nil {
-        return nil, fmt.Errorf("invalid private key")
-    }
-
-    priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-    if err != nil {
-        return nil, err
-    }
-
-    return &KeyPair{
-        PrivateKey: priv,
-        PublicKey:  &priv.PublicKey,
-        Kid:        kid,
-    }, nil
-}
-```
-
-At `/internal/infrastructure/persistence/memory/refresh_store.go`
-```golang
-package memory
-
-import (
-	"errors"
-	"sync"
-	"time"
-)
-
-type InMemoryRefreshStore struct {
-	data sync.Map
-}
-
-func (s *InMemoryRefreshStore) Save(token, userID string, ttl time.Duration) error {
-
-	s.data.Store(token, userID)
-
-	time.AfterFunc(ttl, func() {
-		s.data.Delete(token)
-	})
-
-	return nil
-}
-
-func (s *InMemoryRefreshStore) Get(token string) (string, error) {
-
-	val, ok := s.data.Load(token)
-	if !ok {
-		return "", errors.New("invalid refresh token")
+	data, err := os.ReadFile(privatePath)
+	if err != nil {
+		return nil, err
 	}
 
-	return val.(string), nil
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, fmt.Errorf("invalid private key")
+	}
+
+	priv, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return &KeyPair{
+		PrivateKey: priv,
+		PublicKey:  &priv.PublicKey,
+		Kid:        kid,
+	}, nil
+}
+```
+
+1.2. Create a KeyRing to Manage Multiple Keys
+
+The KeyRing will hold all your keys and determine the active one for signing:
+```golang
+package keys
+
+import (
+    "errors"
+    "sort"
+)
+
+type KeyRing struct {
+    keys   map[string]*KeyPair
+    active *KeyPair
 }
 
-func (s *InMemoryRefreshStore) Delete(token string) error {
-	s.data.Delete(token)
+func NewKeyRing(pairs []*KeyPair) (*KeyRing, error) {
+    if len(pairs) == 0 {
+        return nil, errors.New("no signing keys found")
+    }
+
+    keyMap := make(map[string]*KeyPair)
+    for _, kp := range pairs {
+        keyMap[kp.Kid] = kp
+    }
+
+    // Sort keys to determine the active one (e.g., latest by Kid)
+    sort.Slice(pairs, func(i, j int) bool {
+        return pairs[i].Kid > pairs[j].Kid
+    })
+
+    return &KeyRing{
+        keys:   keyMap,
+        active: pairs[0],
+    }, nil
+}
+
+func (k *KeyRing) Active() *KeyPair {
+    return k.active
+}
+
+func (k *KeyRing) All() []*KeyPair {
+    list := make([]*KeyPair, 0, len(k.keys))
+    for _, v := range k.keys {
+        list = append(list, v)
+    }
+    return list
+}
+
+func (k *KeyRing) Get(kid string) (*KeyPair, bool) {
+    kp, ok := k.keys[kid]
+    return kp, ok
+}
+```
+
+### JWKS Builder
+
+Separate package — do NOT mix with keys.
+
+Serialization ≠ key lifecycle.
+
+At `internal/infrastructure/security/jwks/builder.go` write the following code.
+```golang
+package jwks
+
+import (
+	"crypto/rsa"
+
+	"github.com/lestrrat-go/jwx/v2/jwk"
+)
+
+type Builder struct {
+	keys []jwk.Key
+}
+
+func NewBuilder() *Builder {
+	return &Builder{}
+}
+
+func (b *Builder) AddRSAKey(pub *rsa.PublicKey, kid string) error {
+
+	key, err := jwk.FromRaw(pub)
+	if err != nil {
+		return err
+	}
+
+	key.Set(jwk.KeyIDKey, kid)
+	key.Set(jwk.AlgorithmKey, "RS256")
+	key.Set(jwk.KeyUsageKey, "sig")
+
+	b.keys = append(b.keys, key)
+
 	return nil
 }
+
+func (b *Builder) Build() (jwk.Set, error) {
+
+	set := jwk.NewSet()
+
+	for _, k := range b.keys {
+		set.AddKey(k)
+	}
+
+	return set, nil
+}
 ```
 
-### Then install the following `jwt` package
-```bash
-go get github.com/golang-jwt/jwt/v5
+At `main.go` add the following code.
+```golang
+	// load all keys from the directory and create a key ring
+	keyRing, err := keys.LoadKeyRing("secrets/keys")
+	if err != nil {
+		log.Fatal("FATAL: no signing keys found")
+	}
+	active := keyRing.Active()
+
+	signer := crypto.NewRSASigner(
+		active.PrivateKey,
+		active.PublicKey,
+		active.Kid,
+	)
+	refreshStore := memory.NewInMemoryRefreshStore()
+	tokenIssuer := tokenApp.NewTokenIssuerService(
+		signer,
+		refreshStore,
+		"https://rabbi.work", // issuer - temporarily set to localhost/my personal domain, should be the actual domain in production
+	)
 ```
 
-At `/internal/infrastructure/security/jwt/token_generator.go`
-
----
-
-# 🔄 Key Lifecycle (VERY Important)
-
-Most tutorials skip this.
-
-Production systems MUST define lifecycle.
-
----
-
-## Recommended Strategy
-
-### Rotation Every:
-
-```
-6 — 12 months
-```
-
----
-
-## Rotation Model
-
-```
-kid-2025-01  → ACTIVE
-kid-2024-01  → still in JWKS
-```
-
-Never remove old keys immediately.
-
-Why?
-
-Because issued tokens may still be valid.
-
----
-
-### Safe Rotation Flow
-
-```
-1. Generate new key
-2. Add to JWKS
-3. Start signing with new key
-4. Wait for old tokens to expire
-5. Remove old key
-```
-
-Zero downtime.
-
----
-
-# 🚨 Security Threat Model
-
-## If Private Key Leaks:
-
-Attackers can:
-
-✔ forge tokens
-✔ impersonate users
-✔ bypass auth
-
-👉 This is a **total compromise**.
-
----
-
-## Therefore:
-
-### NEVER:
-
-❌ Commit keys to Git
-❌ Send via Slack
-❌ Store in Docker image
-❌ Put inside config maps
-
----
-
-## ALWAYS Prefer:
-
-* Vault
-* AWS Secrets Manager
-* Azure Key Vault
-* GCP Secret Manager
-
-Even for mid-scale systems.
-
----
-
-# ⚠️ Common Beginner Mistakes
-
-## ❌ Using HS256
-
-Symmetric key = shared secret.
-
-Meaning:
-
-Every service that verifies tokens can also create them.
-
-Catastrophic architecture flaw.
-
-👉 Avoid for auth servers.
-
----
-
-## ❌ Generating Keys On Startup
-
-If container restarts:
-
-💥 All tokens instantly invalid.
-
-Production outage.
-
----
-
-## ❌ Missing `kid`
-
-Without it — rotation becomes painful.
-
-Always include:
-
-```
-token.Header["kid"]
-```
-
----
-
-# 🧭 Future Compatibility (OIDC)
-
-By implementing RSA correctly now — you automatically unlock:
-
-✅ JWKS
-✅ OpenID Discovery
-✅ ID Tokens
-✅ Federation
-✅ Multi-region verification
-
-You are laying the **cryptographic foundation** of your identity platform.
-
-This is not just auth anymore — it's security engineering.
-
----
-
-# ⭐ Recommended Next Step
-
-After RSA generation, immediately implement:
-
-## 👉 JWKS endpoint
-
-```
-GET /.well-known/jwks.json
-```
-
-Then:
-
-## 👉 Discovery endpoint
-
-```
-GET /.well-known/openid-configuration
-```
-
-At that point…
-
-Your server starts looking like a real OIDC provider.
-
----
-
-If you want — next I can build you an even more advanced doc:
-
-👉 **"JWT Signing Architecture for Authorization Servers"**
-
-It covers:
-
-* Access vs ID token signing
-* Multi-tenant keys
-* HSM usage
-* ECDSA vs RSA
-* Offline signing
-* Token hierarchy
-
-Just say:
-
-> next doc
-
-and we’ll level your auth server up to **enterprise-grade design** 🚀

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/rabbicse/auth-service/internal/application/authentication"
@@ -12,6 +13,7 @@ import (
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/client"
 	"github.com/rabbicse/auth-service/internal/infrastructure/persistence/memory"
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/crypto"
+	"github.com/rabbicse/auth-service/internal/infrastructure/security/jwks"
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/keys"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
@@ -36,20 +38,50 @@ func main() {
 	loginHandler := handlers.NewLoginHandler(loginService)
 
 	// Initialize JWT token issuer
-	keyPair, _ := keys.LoadKeyPair(
-		"secrets/private.pem",
-		"kid-2026-01",
-	)
+	// keyPair, _ := keys.LoadKeyPair(
+	// 	"secrets/private.pem",
+	// 	"kid-2026-01",
+	// )
+
+	cwd, _ := os.Getwd()
+	log.Println("WORKING DIR:", cwd)
+	// load all keys from the directory and create a key ring
+	keyRing, err := keys.LoadKeyRing("secrets/keys")
+	if err != nil {
+		log.Fatal("FATAL: no signing keys found")
+	}
+	active := keyRing.Active()
+
 	signer := crypto.NewRSASigner(
-		keyPair.PrivateKey,
-		keyPair.PublicKey,
-		keyPair.Kid,
+		active.PrivateKey,
+		active.PublicKey,
+		active.Kid,
 	)
+	builder := jwks.NewBuilder()
+
+	for _, kp := range keyRing.All() {
+
+		err := builder.AddRSAKey(
+			kp.PublicKey,
+			kp.Kid,
+		)
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	jwksSet, err := builder.Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+	jwksHandler := handlers.NewJWKSHandler(jwksSet)
+
 	refreshStore := memory.NewInMemoryRefreshStore()
 	tokenIssuer := tokenApp.NewTokenIssuerService(
 		signer,
 		refreshStore,
-		"https://auth.mycompany.com",
+		"http://localhost:8080", // issuer - temporarily set to localhost/my personal domain, should be the actual domain in production
 	)
 
 	// Initialize Oauth 2.0 services and handlers
@@ -79,7 +111,12 @@ func main() {
 	introspectionHandler := handlers.NewIntrospectionHandler(introspectionService)
 
 	// 2. Create HTTP router
-	router := httpiface.NewRouter(registerHandler, loginHandler, oAutheHandler, tokenHandler, introspectionHandler)
+	router := httpiface.NewRouter(registerHandler,
+		loginHandler,
+		oAutheHandler,
+		tokenHandler,
+		introspectionHandler,
+		jwksHandler)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)

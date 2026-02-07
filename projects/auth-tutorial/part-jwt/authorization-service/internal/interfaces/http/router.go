@@ -11,8 +11,9 @@ func NewRouter(
 	oauthHandler *handlers.AuthorizeHandler,
 	tokenHandler *handlers.TokenHandler,
 	introspectionHandler *handlers.IntrospectionHandler,
+	jwksHandler *handlers.JWKSHandler,
 ) *gin.Engine {
-	r := gin.New()
+	r := gin.Default()
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
@@ -35,6 +36,9 @@ func NewRouter(
 	r.POST("/token", tokenHandler.Handle)
 
 	r.POST("/oauth/introspect", introspectionHandler.Introspect)
+
+	// JWKS endpoint
+	r.GET("/.well-known/jwks.json", jwksHandler.Handle)
 
 	return r
 }
