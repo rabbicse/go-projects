@@ -15,6 +15,7 @@ import (
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/crypto"
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/jwks"
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/keys"
+	"github.com/rabbicse/auth-service/internal/infrastructure/security/oidc"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
 )
@@ -84,6 +85,11 @@ func main() {
 		"http://localhost:8080", // issuer - temporarily set to localhost/my personal domain, should be the actual domain in production
 	)
 
+	provider := oidc.NewOidcProvider(
+		"http://localhost:8080",
+	)
+	discoveryHandler := handlers.NewDiscoveryHandler(provider)
+
 	// Initialize Oauth 2.0 services and handlers
 	clientRepo := memory.NewClientRepository([]*client.Client{
 		{
@@ -116,7 +122,8 @@ func main() {
 		oAutheHandler,
 		tokenHandler,
 		introspectionHandler,
-		jwksHandler)
+		jwksHandler,
+		discoveryHandler)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)

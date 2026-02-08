@@ -11,4 +11,7 @@ var (
 	ErrUnsupportedGrantType = errors.New("unsupported grant type")
 	ErrInvalidAuthCode      = errors.New("invalid authorization code")
 	ErrClientAuthFailed     = errors.New("client authentication failed")
+
+	ErrInvalidUser        = errors.New("invalid user")
+	ErrUnauthorizedClient = errors.New("unauthorized client")
 )

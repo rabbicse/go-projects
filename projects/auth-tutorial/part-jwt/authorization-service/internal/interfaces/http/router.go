@@ -12,6 +12,7 @@ func NewRouter(
 	tokenHandler *handlers.TokenHandler,
 	introspectionHandler *handlers.IntrospectionHandler,
 	jwksHandler *handlers.JWKSHandler,
+	discoveryHandler *handlers.DiscoveryHandler,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -39,6 +40,9 @@ func NewRouter(
 
 	// JWKS endpoint
 	r.GET("/.well-known/jwks.json", jwksHandler.Handle)
+
+	// OIDC Discovery endpoint
+	r.GET("/.well-known/openid-configuration", discoveryHandler.Handle)
 
 	return r
 }

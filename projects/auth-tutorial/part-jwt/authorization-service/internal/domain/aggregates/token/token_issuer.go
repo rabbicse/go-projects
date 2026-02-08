@@ -18,5 +18,11 @@ type TokenIssuer interface {
 		clientID string,
 	) (string, time.Time, error)
 
+	GenerateIDToken(
+		userID string,
+		clientID string,
+		email string,
+	) (string, error)
+
 	ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error)
 }

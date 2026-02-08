@@ -18,3 +18,14 @@ func (c *Client) AllowsRedirect(uri string) bool {
 func (c *Client) AllowsScope(scope string) bool {
 	return slices.Contains(c.Scopes, scope)
 }
+
+func (c *Client) SupportsGrant(grant GrantType) bool {
+
+	for _, g := range c.GrantTypes {
+		if g == grant {
+			return true
+		}
+	}
+
+	return false
+}

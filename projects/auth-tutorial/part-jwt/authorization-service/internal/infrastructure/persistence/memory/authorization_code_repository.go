@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain"
@@ -37,4 +38,20 @@ func (r *AuthCodeRepository) Get(code string) (*oauth.AuthorizationCode, error) 
 
 	delete(r.codes, code) // 🔐 replay protection
 	return ac, nil
+}
+
+func (r *AuthCodeRepository) Consume(code string) (*oauth.AuthorizationCode, error) {
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	authCode, ok := r.codes[code]
+	if !ok {
+		return nil, errors.New("invalid authorization code")
+	}
+
+	// 🔥 delete immediately (atomic)
+	delete(r.codes, code)
+
+	return authCode, nil
 }

@@ -84,6 +84,31 @@ func (s *TokenIssuerService) GenerateRefreshToken(
 	return tokenStr, exp, nil
 }
 
+func (s *TokenIssuerService) GenerateIDToken(
+	userID string,
+	clientID string,
+	email string,
+) (string, error) {
+
+	now := time.Now()
+
+	claims := valueobjects.IDClaims{
+		Email:         email,
+		EmailVerified: true,
+
+		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    s.issuer,
+			Subject:   userID,
+			Audience:  []string{clientID},
+			ExpiresAt: jwt.NewNumericDate(now.Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ID:        uuid.NewString(),
+		},
+	}
+
+	return s.signer.Sign(claims)
+}
+
 func (s *TokenIssuerService) ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error) {
 
 	token, err := jwt.ParseWithClaims(
