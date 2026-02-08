@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ func NewAuthorizeHandler(oauth *oauth.OAuthService) *AuthorizeHandler {
 
 func (h *AuthorizeHandler) Handle(c *gin.Context) {
 	userID := c.GetString("user_id")
+	log.Printf("UserID at authorize: %v", userID)
 
 	req := applicationDtos.AuthorizationRequest{
 		ResponseType: c.Query("response_type"),
@@ -28,6 +30,8 @@ func (h *AuthorizeHandler) Handle(c *gin.Context) {
 
 		UserID: userID,
 	}
+
+	log.Printf("Authorization Request: %v", req)
 
 	resp, err := h.oauth.Authorize(c.Request.Context(), req)
 	if err != nil {

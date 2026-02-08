@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"crypto/subtle"
+	"log"
 	"strings"
 	"time"
 
@@ -148,6 +149,7 @@ func (s *TokenService) Token(
 	if err != nil {
 		return nil, application.ErrInvalidClient
 	}
+	log.Printf("Client: %v", c)
 
 	// ✅ Ensure client supports this grant
 	if !c.SupportsGrant(client.GrantAuthorizationCode) {
@@ -181,8 +183,12 @@ func (s *TokenService) Token(
 		return nil, application.ErrInvalidAuthCode
 	}
 
+	log.Printf("Auth Code: %v", authCode)
+
 	// ✅ Load user (needed for ID token)
+	log.Println("Looking for user:", authCode.UserID)
 	u, err := s.userRepo.FindByID(authCode.UserID)
+	log.Println("User lookup result:", u, err)
 	if err != nil {
 		return nil, application.ErrInvalidUser
 	}

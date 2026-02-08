@@ -1,7 +1,7 @@
 package memory
 
 import (
-	"context"
+	"errors"
 	"sync"
 
 	"github.com/rabbicse/auth-service/internal/domain/aggregates/user"
@@ -9,55 +9,76 @@ import (
 )
 
 type UserRepository struct {
-	mu    sync.RWMutex
-	users map[string]*user.User
+	mu           sync.RWMutex
+	usersByID    map[string]*user.User
+	usersByUN    map[string]*user.User
+	usersByEmail map[string]*user.User
 }
 
 func NewUserRepository(seed []*user.User) *UserRepository {
-	m := make(map[string]*user.User)
-	for _, u := range seed {
-		m[u.ID] = u
+
+	repo := &UserRepository{
+		usersByID:    make(map[string]*user.User),
+		usersByUN:    make(map[string]*user.User),
+		usersByEmail: make(map[string]*user.User),
 	}
-	return &UserRepository{users: m}
+
+	for _, u := range seed {
+		repo.usersByID[u.ID] = u
+		repo.usersByUN[u.Username] = u
+		repo.usersByEmail[u.Email] = u
+	}
+
+	return repo
 }
 
-func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, error) {
+func (r *UserRepository) FindByID(id string) (*user.User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	u, ok := r.users[id]
+	u, ok := r.usersByID[id]
 	if !ok {
 		return nil, shared.ErrUserNotFound
 	}
+
 	return u, nil
 }
 
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
+func (r *UserRepository) FindByEmail(email string) (*user.User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	for _, u := range r.users {
-		if u.Email == email {
-			return u, nil
-		}
+	u, ok := r.usersByEmail[email]
+	if !ok {
+		return nil, shared.ErrUserNotFound
 	}
-	return nil, shared.ErrUserNotFound
+
+	return u, nil
 }
 
 func (r *UserRepository) Save(u *user.User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.users[u.Username] = u
+
+	if _, exists := r.usersByEmail[u.Email]; exists {
+		return errors.New("email already registered")
+	}
+
+	r.usersByID[u.ID] = u
+	r.usersByUN[u.Username] = u
+	r.usersByEmail[u.Email] = u
 
 	return nil
 }
 
 func (r *UserRepository) FindByUsername(username string) (*user.User, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	u, ok := r.users[username]
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	u, ok := r.usersByUN[username]
 	if !ok {
 		return nil, shared.ErrUserNotFound
 	}
+
 	return u, nil
 }

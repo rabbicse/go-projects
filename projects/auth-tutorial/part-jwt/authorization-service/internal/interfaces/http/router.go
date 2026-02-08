@@ -13,6 +13,7 @@ func NewRouter(
 	introspectionHandler *handlers.IntrospectionHandler,
 	jwksHandler *handlers.JWKSHandler,
 	discoveryHandler *handlers.DiscoveryHandler,
+	authMiddleware gin.HandlerFunc,
 ) *gin.Engine {
 	r := gin.Default()
 
@@ -33,7 +34,7 @@ func NewRouter(
 	r.POST("/login/verify", loginHandler.Verify)
 
 	// Oauth 2.0 routes
-	r.GET("/authorize", oauthHandler.Handle)
+	r.GET("/authorize", authMiddleware, oauthHandler.Handle)
 	r.POST("/token", tokenHandler.Handle)
 
 	r.POST("/oauth/introspect", introspectionHandler.Introspect)

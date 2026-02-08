@@ -14,9 +14,9 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-const (
-	BaseURL = "http://localhost:8080"
-)
+// const (
+// 	BaseURL = "http://localhost:8080"
+// )
 
 func Test_Login_Flow(t *testing.T) {
 	username := "alice"

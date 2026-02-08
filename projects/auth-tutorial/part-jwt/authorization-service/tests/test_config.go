@@ -7,6 +7,6 @@ const (
 	ClientID        = "client-123"
 	ClientSecret    = "secret"
 	RedirectURI     = "http://localhost:3000/callback"
-	Scope           = "profile email"
+	Scope           = "openid profile email"
 	State           = "xyz123"
 )

@@ -7,10 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"testing"
 
@@ -38,9 +36,7 @@ func Test_Full_Identity_Flow(t *testing.T) {
 	t.Log("STEP 1 → REGISTER USER")
 
 	salt := make([]byte, 16)
-	if _, err := rand.Read(salt); err != nil {
-		t.Fatal(err)
-	}
+	rand.Read(salt)
 
 	verifier := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
 
@@ -74,19 +70,8 @@ func Test_Full_Identity_Flow(t *testing.T) {
 		&chal,
 	)
 
-	t.Log("ChallengeID:", chal.ChallengeID)
-	t.Log("Salt:", chal.Salt)
-	t.Log("Challenge:", chal.Challenge)
-
-	saltSrv, err := base64.RawURLEncoding.DecodeString(chal.Salt)
-	if err != nil {
-		t.Fatal("failed to decode salt:", err)
-	}
-
-	challenge, err := base64.RawURLEncoding.DecodeString(chal.Challenge)
-	if err != nil {
-		t.Fatal("failed to decode challenge:", err)
-	}
+	saltSrv, _ := base64.RawURLEncoding.DecodeString(chal.Salt)
+	challenge, _ := base64.RawURLEncoding.DecodeString(chal.Challenge)
 
 	verifier2 := argon2.IDKey([]byte(password), saltSrv, 1, 64*1024, 4, 32)
 
@@ -95,13 +80,15 @@ func Test_Full_Identity_Flow(t *testing.T) {
 
 	proof := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 
-	t.Log("Computed Proof:", proof)
-
 	//--------------------------------------
-	// 3. LOGIN VERIFY (SESSION CREATED)
+	// 3. LOGIN VERIFY → GET LOGIN TOKEN
 	//--------------------------------------
 
 	t.Log("STEP 3 → VERIFY LOGIN")
+
+	var loginResp struct {
+		LoginToken string `json:"login_token"`
+	}
 
 	callApiWithClient(t, client, "POST", "/login/verify",
 		map[string]string{
@@ -109,13 +96,19 @@ func Test_Full_Identity_Flow(t *testing.T) {
 			"challenge_id": chal.ChallengeID,
 			"proof":        proof,
 		},
-		nil,
+		&loginResp,
 	)
 
-	t.Log("✅ LOGIN SUCCESSFUL (SESSION SHOULD EXIST)")
+	if loginResp.LoginToken == "" {
+		t.Fatal("login_token missing")
+	}
+
+	loginToken := loginResp.LoginToken
+
+	t.Log("✅ LOGIN TOKEN ISSUED")
 
 	//--------------------------------------
-	// 4. OAUTH AUTHORIZE
+	// 4. AUTHORIZE (Bearer login token)
 	//--------------------------------------
 
 	t.Log("STEP 4 → OAUTH AUTHORIZE")
@@ -124,12 +117,13 @@ func Test_Full_Identity_Flow(t *testing.T) {
 		"response_type=code" +
 		"&client_id=" + url.QueryEscape(ClientID) +
 		"&redirect_uri=" + url.QueryEscape(RedirectURI) +
-		"&scope=" + url.QueryEscape(Scope) +
+		"&scope=" + url.QueryEscape("openid profile email") +
 		"&state=" + State
 
-	t.Log("Authorize URL:", authURL)
+	req, _ := http.NewRequest("GET", authURL, nil)
+	req.Header.Set("Authorization", "Bearer "+loginToken)
 
-	resp, err := client.Get(authURL)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,28 +131,22 @@ func Test_Full_Identity_Flow(t *testing.T) {
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	t.Log("Authorize Status:", resp.StatusCode)
-	t.Log("Authorize Body:", string(bodyBytes))
-
 	if resp.StatusCode != http.StatusFound {
-		t.Fatalf("Expected redirect, got %d: %s", resp.StatusCode, string(bodyBytes))
+		t.Fatalf("Expected redirect, got %d: %s",
+			resp.StatusCode,
+			string(bodyBytes))
 	}
 
 	location := resp.Header.Get("Location")
-	t.Log("Redirect Location:", location)
 
-	redirectURL, err := url.Parse(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	redirectURL, _ := url.Parse(location)
 	code := redirectURL.Query().Get("code")
 
 	if code == "" {
-		t.Fatal("Authorization code missing")
+		t.Fatal("authorization code missing")
 	}
 
-	t.Log("✅ AUTHORIZATION CODE:", code)
+	t.Log("✅ AUTHORIZATION CODE RECEIVED")
 
 	//--------------------------------------
 	// 5. TOKEN EXCHANGE
@@ -173,8 +161,11 @@ func Test_Full_Identity_Flow(t *testing.T) {
 	form.Set("client_id", ClientID)
 	form.Set("client_secret", ClientSecret)
 
-	req, err := http.NewRequest("POST", OauthBaseURL+"/token",
-		bytes.NewBufferString(form.Encode()))
+	req, err = http.NewRequest(
+		"POST",
+		OauthBaseURL+"/token",
+		bytes.NewBufferString(form.Encode()),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,35 +178,47 @@ func Test_Full_Identity_Flow(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	tokenBody, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	t.Log("Token Status:", resp.StatusCode)
-	t.Log("Token Response:", string(tokenBody))
+	t.Log("Token Body:", string(body))
 
-	var tokenResp map[string]any
-	if err := json.Unmarshal(tokenBody, &tokenResp); err != nil {
-		t.Fatal("failed to decode token response:", err)
+	if resp.StatusCode != 200 {
+		t.Fatalf("TOKEN EXCHANGE FAILED → %s", string(body))
 	}
 
-	accessToken, ok := tokenResp["access_token"].(string)
-	if !ok || accessToken == "" {
-		t.Fatalf("access_token missing in response: %+v", tokenResp)
+	var tokenResp struct {
+		AccessToken  string `json:"access_token"`
+		IDToken      string `json:"id_token"`
+		RefreshToken string `json:"refresh_token"`
 	}
 
-	t.Log("✅ ACCESS TOKEN RECEIVED")
+	// json.NewDecoder(resp.Body).Decode(&tokenResp)
+
+	json.Unmarshal(body, &tokenResp)
+
+	if tokenResp.AccessToken == "" {
+		t.Fatal("access_token missing")
+	}
+
+	if tokenResp.IDToken == "" {
+		t.Fatal("id_token missing — OIDC not working")
+	}
+
+	t.Log("✅ TOKENS ISSUED")
 
 	//--------------------------------------
-	// 6. ACCESS RESOURCE
+	// 6. ACCESS RESOURCE (JWT validation)
 	//--------------------------------------
 
 	t.Log("STEP 6 → ACCESS PROTECTED RESOURCE")
 
-	req, err = http.NewRequest("GET", ResourceBaseURL+"/protected", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	req, _ = http.NewRequest("GET",
+		ResourceBaseURL+"/protected",
+		nil)
 
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization",
+		"Bearer "+tokenResp.AccessToken)
 
 	resp, err = client.Do(req)
 	if err != nil {
@@ -223,65 +226,14 @@ func Test_Full_Identity_Flow(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	resourceBody, _ := io.ReadAll(resp.Body)
-
-	t.Log("Resource Status:", resp.StatusCode)
-	t.Log("Resource Body:", string(resourceBody))
-
 	if resp.StatusCode != 200 {
-		t.Fatal("protected resource failed")
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("resource failed: %s", string(body))
 	}
+
+	t.Log("✅ RESOURCE ACCESS GRANTED")
 
 	t.Log("===================================")
-	t.Log("✅ FULL FLOW SUCCESS")
+	t.Log("🎉 FULL IDENTITY FLOW SUCCESS")
 	t.Log("===================================")
-}
-
-func callApiWithClient(t *testing.T,
-	client *http.Client,
-	method, path string,
-	body any,
-	out any,
-) {
-
-	var buf bytes.Buffer
-	if body != nil {
-		json.NewEncoder(&buf).Encode(body)
-	}
-
-	req, _ := http.NewRequest(method, BaseURL+path, &buf)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("%s %s failed: %d %s",
-			method, path, resp.StatusCode, string(b))
-	}
-
-	if out != nil {
-		json.NewDecoder(resp.Body).Decode(out)
-	}
-}
-
-func randomString(prefix string) string {
-	b := make([]byte, 4)
-	rand.Read(b)
-	return fmt.Sprintf("%s_%x", prefix, b)
-}
-
-func newHttpClient() *http.Client {
-	jar, _ := cookiejar.New(nil)
-
-	return &http.Client{
-		Jar: jar,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
 }

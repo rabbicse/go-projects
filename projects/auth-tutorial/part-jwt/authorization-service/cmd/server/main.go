@@ -18,6 +18,7 @@ import (
 	"github.com/rabbicse/auth-service/internal/infrastructure/security/oidc"
 	httpiface "github.com/rabbicse/auth-service/internal/interfaces/http"
 	"github.com/rabbicse/auth-service/internal/interfaces/http/handlers"
+	"github.com/rabbicse/auth-service/internal/middleware"
 )
 
 func main() {
@@ -116,6 +117,8 @@ func main() {
 
 	introspectionHandler := handlers.NewIntrospectionHandler(introspectionService)
 
+	authMiddleware := middleware.AuthenticationMiddleware(loginTokenService)
+
 	// 2. Create HTTP router
 	router := httpiface.NewRouter(registerHandler,
 		loginHandler,
@@ -123,7 +126,8 @@ func main() {
 		tokenHandler,
 		introspectionHandler,
 		jwksHandler,
-		discoveryHandler)
+		discoveryHandler,
+		authMiddleware)
 
 	// 3. Start server
 	addr := fmt.Sprintf("%s:%s", cfg.Server.Host, cfg.Server.Port)
