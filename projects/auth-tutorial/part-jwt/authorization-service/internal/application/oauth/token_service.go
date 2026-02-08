@@ -43,107 +43,26 @@ func NewTokenService(
 	}
 }
 
-// func (s *TokenService) Token(
-// 	ctx context.Context,
-// 	req dtos.TokenRequest,
-// ) (*dtos.TokenResponse, error) {
-
-// 	if req.GrantType != "authorization_code" {
-// 		return nil, application.ErrUnsupportedGrantType
-// 	}
-
-// 	// 1. Load client
-// 	c, err := s.clientRepo.FindByID(req.ClientID)
-// 	if err != nil {
-// 		return nil, application.ErrInvalidClient
-// 	}
-
-// 	// 2. Authenticate client (confidential clients)
-// 	if !c.IsPublic {
-// 		if !verifySecret(req.ClientSecret, c.SecretHash) {
-// 			return nil, application.ErrClientAuthFailed
-// 		}
-// 	}
-
-// 	// 3. Get authorization code (one-time)
-// 	authCode, err := s.authCodeRepo.Get(req.Code)
-// 	if err != nil {
-// 		return nil, application.ErrInvalidAuthCode
-// 	}
-
-// 	// 4. Validate auth code
-// 	if authCode.ClientID != c.ID {
-// 		return nil, application.ErrInvalidAuthCode
-// 	}
-
-// 	if authCode.RedirectURI != req.RedirectURI {
-// 		return nil, application.ErrInvalidRedirectURI
-// 	}
-
-// 	if authCode.IsExpired(s.clock()) {
-// 		return nil, application.ErrInvalidAuthCode
-// 	}
-
-// 	// 5. Issue tokens
-// 	// accessToken, _ := generateSecureToken(32)
-// 	accessToken, expiresAt, err :=
-// 		s.tokenIssuer.GenerateAccessToken(
-// 			authCode.UserID,
-// 			c.ID,
-// 			authCode.Scopes,
-// 		)
-// 	// refreshToken, _ := generateSecureToken(32)
-// 	refreshToken, _, err :=
-// 		s.tokenIssuer.GenerateRefreshToken(
-// 			authCode.UserID,
-// 			c.ID,
-// 		)
-
-// 	// expiresAt := s.clock().Add(1 * time.Hour)
-// 	idToken, err := s.tokenIssuer.GenerateIDToken(
-// 		authCode.UserID,
-// 		c.ID,
-// 		user.Email, // load from repo
-// 	)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	tok := &tokenDomain.Token{
-// 		AccessToken:  accessToken,
-// 		RefreshToken: refreshToken,
-// 		IDToken:      idToken,
-// 		ClientID:     c.ID,
-// 		UserID:       authCode.UserID,
-// 		Scopes:       authCode.Scopes,
-// 		ExpiresAt:    expiresAt,
-// 	}
-
-// 	if err := s.tokenRepo.Save(tok); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &dtos.TokenResponse{
-// 		AccessToken:  accessToken,
-// 		RefreshToken: refreshToken,
-// 		IDToken:      idToken,
-// 		TokenType:    "Bearer",
-// 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
-// 		Scope:        strings.Join(authCode.Scopes, " "),
-// 	}, nil
-// }
-
 func (s *TokenService) Token(
 	ctx context.Context,
 	req dtos.TokenRequest,
 ) (*dtos.TokenResponse, error) {
 
 	// ✅ Grant validation
-	if req.GrantType != "authorization_code" {
+	switch req.GrantType {
+	case "authorization_code":
+		return s.handleAuthorizationCode(ctx, req)
+	case "refresh_token":
+		return s.handleRefresh(ctx, req)
+	default:
 		return nil, application.ErrUnsupportedGrantType
 	}
+}
 
+func (s *TokenService) handleAuthorizationCode(
+	ctx context.Context,
+	req dtos.TokenRequest,
+) (*dtos.TokenResponse, error) {
 	// ✅ Load client
 	c, err := s.clientRepo.FindByID(req.ClientID)
 	if err != nil {
@@ -252,6 +171,43 @@ func (s *TokenService) Token(
 		TokenType:    "Bearer",
 		ExpiresIn:    int64(time.Until(expiresAt).Seconds()),
 		Scope:        strings.Join(authCode.Scopes, " "),
+	}, nil
+}
+
+func (s *TokenService) handleRefresh(
+	ctx context.Context,
+	req dtos.TokenRequest,
+) (*dtos.TokenResponse, error) {
+
+	log.Println("REFRESH RECEIVED:", req.RefreshToken)
+
+	if req.RefreshToken == "" {
+		return nil, application.ErrInvalidRefreshToken
+	}
+
+	// ✅ rotate using issuer
+	session, newRefresh, err :=
+		s.tokenIssuer.RotateRefreshToken(req.RefreshToken)
+
+	if err != nil {
+		return nil, application.ErrInvalidRefreshToken
+	}
+
+	accessToken, exp, err :=
+		s.tokenIssuer.GenerateAccessToken(
+			session.UserID,
+			session.ClientID,
+			session.Scopes, // IMPORTANT — store scopes!
+		)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dtos.TokenResponse{
+		AccessToken:  accessToken,
+		RefreshToken: newRefresh,
+		TokenType:    "Bearer",
+		ExpiresIn:    int64(time.Until(exp).Seconds()),
 	}, nil
 }
 

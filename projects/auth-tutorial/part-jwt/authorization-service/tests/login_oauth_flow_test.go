@@ -236,4 +236,105 @@ func Test_Full_Identity_Flow(t *testing.T) {
 	t.Log("===================================")
 	t.Log("🎉 FULL IDENTITY FLOW SUCCESS")
 	t.Log("===================================")
+
+	//--------------------------------------
+	// 7. REFRESH TOKEN
+	//--------------------------------------
+
+	oldRefresh := tokenResp.RefreshToken
+
+	form = url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", oldRefresh)
+	form.Set("client_id", ClientID)
+	form.Set("client_secret", ClientSecret)
+
+	req, _ = http.NewRequest(
+		"POST",
+		OauthBaseURL+"/token",
+		bytes.NewBufferString(form.Encode()),
+	)
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ = io.ReadAll(resp.Body)
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("refresh failed: %s", string(body))
+	}
+
+	var refreshResp struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	json.Unmarshal(body, &refreshResp)
+
+	if refreshResp.AccessToken == "" {
+		t.Fatal("new access token missing")
+	}
+
+	t.Log("✅ NEW ACCESS TOKEN ISSUED")
+
+	//--------------------------------------
+	// 8. ACCESS WITH NEW TOKEN
+	//--------------------------------------
+
+	req, _ = http.NewRequest("GET",
+		ResourceBaseURL+"/protected",
+		nil)
+
+	req.Header.Set("Authorization",
+		"Bearer "+refreshResp.AccessToken)
+
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode != 200 {
+		t.Fatal("resource failed with refreshed token")
+	}
+
+	t.Log("✅ RESOURCE ACCESS WITH REFRESHED TOKEN")
+
+	//--------------------------------------
+	// 9. REPLAY ATTACK TEST
+	//--------------------------------------
+
+	form = url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", oldRefresh) // reuse old!
+	form.Set("client_id", ClientID)
+	form.Set("client_secret", ClientSecret)
+
+	req, _ = http.NewRequest(
+		"POST",
+		OauthBaseURL+"/token",
+		bytes.NewBufferString(form.Encode()),
+	)
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.StatusCode == 200 {
+		t.Fatal("SECURITY BUG — old refresh token reused!")
+	}
+
+	t.Log("✅ OLD REFRESH TOKEN REJECTED")
+
+	t.Log("===================================")
+	t.Log("🎉 FULL IDENTITY + REFRESH FLOW SUCCESS")
+	t.Log("===================================")
+
 }

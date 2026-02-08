@@ -23,6 +23,7 @@ func (h *TokenHandler) Handle(c *gin.Context) {
 		RedirectURI:  c.PostForm("redirect_uri"),
 		ClientID:     c.PostForm("client_id"),
 		ClientSecret: c.PostForm("client_secret"),
+		RefreshToken: c.PostForm("refresh_token"),
 	}
 
 	resp, err := h.oauth.Token(c.Request.Context(), req)

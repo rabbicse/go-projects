@@ -25,4 +25,8 @@ type TokenIssuer interface {
 	) (string, error)
 
 	ValidateAccessToken(tokenStr string) (*valueobjects.AccessClaims, error)
+
+	ValidateRefreshToken(tokenStr string) (*RefreshSession, error)
+
+	RotateRefreshToken(old string) (*RefreshSession, string, error)
 }

@@ -136,6 +136,38 @@ func (s *TokenIssuerService) ValidateAccessToken(tokenStr string) (*valueobjects
 	return claims, nil
 }
 
+func (s *TokenIssuerService) ValidateRefreshToken(
+	token string,
+) (*token.RefreshSession, error) {
+
+	return s.store.Get(token)
+}
+
+func (s *TokenIssuerService) RotateRefreshToken(
+	old string,
+) (*token.RefreshSession, string, error) {
+
+	session, err := s.store.Get(old)
+	if err != nil {
+		return nil, "", err
+	}
+
+	// delete old
+	_ = s.store.Delete(old)
+
+	// create new
+	newToken, _, err := s.GenerateRefreshToken(
+		session.UserID,
+		session.ClientID,
+	)
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	return session, newToken, nil
+}
+
 func generateSecureToken(bytes int) (string, error) {
 	b := make([]byte, bytes)
 

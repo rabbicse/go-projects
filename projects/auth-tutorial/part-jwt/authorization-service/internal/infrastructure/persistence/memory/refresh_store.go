@@ -22,6 +22,7 @@ func (s *InMemoryRefreshStore) Save(
 	clientID string,
 	exp time.Time,
 ) error {
+
 	s.data.Store(t, &token.RefreshSession{
 		Token:     t,
 		UserID:    userID,

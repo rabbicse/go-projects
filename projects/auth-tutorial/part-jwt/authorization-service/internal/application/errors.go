@@ -14,4 +14,6 @@ var (
 
 	ErrInvalidUser        = errors.New("invalid user")
 	ErrUnauthorizedClient = errors.New("unauthorized client")
+
+	ErrInvalidRefreshToken = errors.New("invalid refresh token")
 )
