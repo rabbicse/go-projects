@@ -51,16 +51,15 @@ func (s *TokenService) Token(
 	// ✅ Grant validation
 	switch req.GrantType {
 	case "authorization_code":
-		return s.handleAuthorizationCode(ctx, req)
+		return s.handleAuthorizationCode(req)
 	case "refresh_token":
-		return s.handleRefresh(ctx, req)
+		return s.handleRefresh(req)
 	default:
 		return nil, application.ErrUnsupportedGrantType
 	}
 }
 
 func (s *TokenService) handleAuthorizationCode(
-	ctx context.Context,
 	req dtos.TokenRequest,
 ) (*dtos.TokenResponse, error) {
 	// ✅ Load client
@@ -175,7 +174,6 @@ func (s *TokenService) handleAuthorizationCode(
 }
 
 func (s *TokenService) handleRefresh(
-	ctx context.Context,
 	req dtos.TokenRequest,
 ) (*dtos.TokenResponse, error) {
 
