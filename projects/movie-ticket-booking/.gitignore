@@ -1,0 +1,20 @@
+# Go
+backend/bin/
+*.test
+*.out
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Env
+.env
+.env.local
+backend/.env
+
+# Load test results
+load-tests/results/
+
+# macOS
+.DS_Store

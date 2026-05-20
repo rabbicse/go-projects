@@ -1,0 +1,303 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Movie Ticket Booking API",
+    "description": "Cinema seat booking API. Supports atomic multi-seat holds (1–4 per session) backed by Redis Lua scripts. Persistent booking history in MongoDB.\n\n**Admin credentials:** `admin` / `admin` (HTTP Basic Auth)",
+    "version": "1.0.0",
+    "contact": { "name": "rabbicse" }
+  },
+  "servers": [
+    { "url": "http://localhost:8080/api/v1", "description": "Local development" }
+  ],
+  "tags": [
+    { "name": "Movies",   "description": "Movie catalog and showtime queries" },
+    { "name": "Booking",  "description": "Seat hold, confirm and release flow" },
+    { "name": "Users",    "description": "User booking history" },
+    { "name": "Admin",    "description": "Movie & showtime management (Basic Auth: admin/admin)" },
+    { "name": "System",   "description": "Health check" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "example": { "status": "ok" } } } }
+        }
+      }
+    },
+    "/movies": {
+      "get": {
+        "tags": ["Movies"],
+        "summary": "List all movies with their showtimes",
+        "responses": {
+          "200": {
+            "description": "Array of movies",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Movie" } } } }
+          }
+        }
+      }
+    },
+    "/movies/{id}": {
+      "get": {
+        "tags": ["Movies"],
+        "summary": "Get a single movie by ID",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "dune-part-two" }],
+        "responses": {
+          "200": { "description": "Movie found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/showtimes/{id}": {
+      "get": {
+        "tags": ["Movies"],
+        "summary": "Get a single showtime by ID",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "dune2-hall1-1" }],
+        "responses": {
+          "200": { "description": "Showtime found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Showtime" } } } },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/showtimes/{showtimeId}/seats": {
+      "get": {
+        "tags": ["Booking"],
+        "summary": "Get real-time seat map for a showtime",
+        "description": "Returns every booked/held seat. Pass `user_id` to distinguish your own holds (`held_by_me: true`).",
+        "parameters": [
+          { "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "user_id",    "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Seat statuses",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SeatStatus" } } } }
+          }
+        }
+      }
+    },
+    "/showtimes/{showtimeId}/hold": {
+      "post": {
+        "tags": ["Booking"],
+        "summary": "Hold 1–4 seats atomically",
+        "description": "Uses a Redis Lua script to lock all requested seats in a single atomic operation. Returns a session that expires after HOLD_TTL (default 10m).",
+        "parameters": [{ "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Seats held", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldResponse" } } } },
+          "400": { "description": "Bad request (invalid seat IDs, exceeds max)" },
+          "409": { "description": "Conflict — one or more seats already held" }
+        }
+      }
+    },
+    "/sessions/{sessionId}/confirm": {
+      "put": {
+        "tags": ["Booking"],
+        "summary": "Confirm a held booking",
+        "description": "Converts a temporary hold to a permanent confirmed booking. Persists to MongoDB.",
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserIDRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Booking confirmed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookingResponse" } } } },
+          "403": { "description": "Forbidden — session belongs to another user" },
+          "404": { "description": "Session not found or expired" },
+          "410": { "description": "Hold window has expired" }
+        }
+      }
+    },
+    "/sessions/{sessionId}": {
+      "delete": {
+        "tags": ["Booking"],
+        "summary": "Release a held booking",
+        "description": "Frees all held seats and cancels the session.",
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserIDRequest" } } }
+        },
+        "responses": {
+          "204": { "description": "Released" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Session not found" }
+        }
+      }
+    },
+    "/users/{userId}/bookings": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "Get all bookings for a user",
+        "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Booking list",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/BookingResponse" } } } }
+          }
+        }
+      }
+    },
+    "/admin/movies": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "List all movies (admin)",
+        "security": [{ "basicAuth": [] }],
+        "responses": {
+          "200": { "description": "Movie list" },
+          "401": { "description": "Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Create a new movie",
+        "security": [{ "basicAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateMovieRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Movie created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/admin/movies/{movieId}/showtimes": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Add a showtime to a movie",
+        "security": [{ "basicAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateShowtimeRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Showtime created" },
+          "400": { "description": "Validation error or movie not found" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": { "type": "http", "scheme": "basic" }
+    },
+    "schemas": {
+      "Movie": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "genre": { "type": "array", "items": { "type": "string" } },
+          "rating": { "type": "number" },
+          "poster_url": { "type": "string" },
+          "description": { "type": "string" },
+          "duration_min": { "type": "integer" },
+          "showtimes": { "type": "array", "items": { "$ref": "#/components/schemas/Showtime" } }
+        }
+      },
+      "Showtime": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "movie_id": { "type": "string" },
+          "hall": { "type": "string" },
+          "start_time": { "type": "string", "format": "date-time" },
+          "end_time": { "type": "string", "format": "date-time" },
+          "rows": { "type": "integer" },
+          "seats_per_row": { "type": "integer" },
+          "total_seats": { "type": "integer" },
+          "price_cents": { "type": "integer" },
+          "currency": { "type": "string" }
+        }
+      },
+      "SeatStatus": {
+        "type": "object",
+        "properties": {
+          "seat_id": { "type": "string", "example": "A1" },
+          "status": { "type": "string", "enum": ["available", "held", "confirmed"] },
+          "held_by_me": { "type": "boolean" },
+          "expires_at": { "type": "integer", "description": "Seconds remaining on hold" }
+        }
+      },
+      "HoldRequest": {
+        "type": "object",
+        "required": ["user_id", "seat_ids"],
+        "properties": {
+          "user_id": { "type": "string", "example": "user-abc123" },
+          "seat_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 4, "example": ["A1", "A2"] }
+        }
+      },
+      "HoldResponse": {
+        "type": "object",
+        "properties": {
+          "session_id": { "type": "string" },
+          "showtime_id": { "type": "string" },
+          "movie_id": { "type": "string" },
+          "seat_ids": { "type": "array", "items": { "type": "string" } },
+          "status": { "type": "string", "example": "held" },
+          "expires_at": { "type": "integer", "description": "Unix timestamp when hold expires" }
+        }
+      },
+      "BookingResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "session_id": { "type": "string" },
+          "user_id": { "type": "string" },
+          "showtime_id": { "type": "string" },
+          "movie_id": { "type": "string" },
+          "seats": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "row": { "type": "string" }, "number": { "type": "integer" } } } },
+          "status": { "type": "string" },
+          "total_cents": { "type": "integer" },
+          "currency": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "confirmed_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "UserIDRequest": {
+        "type": "object",
+        "required": ["user_id"],
+        "properties": { "user_id": { "type": "string" } }
+      },
+      "CreateMovieRequest": {
+        "type": "object",
+        "required": ["id", "title", "genre", "rating", "duration_min"],
+        "properties": {
+          "id": { "type": "string", "example": "my-movie" },
+          "title": { "type": "string", "example": "My Movie" },
+          "genre": { "type": "array", "items": { "type": "string" } },
+          "rating": { "type": "number", "minimum": 0, "maximum": 10 },
+          "poster_url": { "type": "string" },
+          "description": { "type": "string" },
+          "duration_min": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "CreateShowtimeRequest": {
+        "type": "object",
+        "required": ["id", "hall", "start_time", "end_time", "rows", "seats_per_row", "price_cents", "currency"],
+        "properties": {
+          "id": { "type": "string" },
+          "hall": { "type": "string", "example": "Hall A" },
+          "start_time": { "type": "string", "format": "date-time" },
+          "end_time": { "type": "string", "format": "date-time" },
+          "rows": { "type": "integer", "minimum": 1, "maximum": 26 },
+          "seats_per_row": { "type": "integer", "minimum": 1, "maximum": 30 },
+          "price_cents": { "type": "integer", "example": 1500 },
+          "currency": { "type": "string", "example": "USD" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } }
+      }
+    }
+  }
+}
