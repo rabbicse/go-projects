@@ -6,26 +6,22 @@ import type { SeatStatus } from "@/types";
 
 const ROWS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+export type SeatState = "available" | "held-mine" | "held-other" | "confirmed";
+
 interface Props {
   showtimeId: string;
   rows: number;
   seatsPerRow: number;
   userID: string;
+  /** optimistic local selection — shown as held-mine immediately */
   selectedSeats: string[];
-  maxSeats: number;
-  onToggleSeat: (seatID: string) => void;
-  activeSessionSeats?: string[]; // seats in a held session (not selectable)
+  onClickSeat: (seatID: string, state: SeatState) => void;
+  interactive: boolean;
 }
 
 export function SeatGrid({
-  showtimeId,
-  rows,
-  seatsPerRow,
-  userID,
-  selectedSeats,
-  maxSeats,
-  onToggleSeat,
-  activeSessionSeats = [],
+  showtimeId, rows, seatsPerRow, userID,
+  selectedSeats, onClickSeat, interactive,
 }: Props) {
   const [statuses, setStatuses] = useState<Map<string, SeatStatus>>(new Map());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -36,117 +32,99 @@ export function SeatGrid({
       const map = new Map<string, SeatStatus>();
       for (const s of data) map.set(s.seat_id, s);
       setStatuses(map);
-    } catch {
-      // polling — swallow errors silently
-    }
+    } catch { /* swallow */ }
   }, [showtimeId, userID]);
 
   useEffect(() => {
     fetchStatuses();
     intervalRef.current = setInterval(fetchStatuses, 2000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchStatuses]);
 
-  function getSeatStyle(seatID: string): React.CSSProperties & { cursor: string } {
+  function getState(seatID: string): SeatState {
+    // Optimistic: locally-selected seats show as held-mine immediately
+    if (selectedSeats.includes(seatID)) return "held-mine";
     const st = statuses.get(seatID);
-    const isSelected = selectedSeats.includes(seatID);
-    const isHeldByMe = st?.held_by_me || activeSessionSeats.includes(seatID);
-    const isConfirmed = st?.status === "confirmed";
-    const isHeldByOther = st?.status === "held" && !isHeldByMe;
-
-    if (isConfirmed)
-      return { background: "var(--confirmed)", color: "#fff", cursor: "not-allowed" };
-    if (isHeldByOther)
-      return { background: "var(--held-other)", color: "#fff", cursor: "not-allowed" };
-    if (isHeldByMe)
-      return { background: "var(--held-mine)", color: "#000", cursor: "default" };
-    if (isSelected)
-      return { background: "var(--accent)", color: "#fff", cursor: "pointer" };
-    return { background: "var(--available)", color: "var(--text-muted)", cursor: "pointer" };
+    if (!st) return "available";
+    if (st.status === "confirmed") return "confirmed";
+    if (st.status === "held") return st.held_by_me ? "held-mine" : "held-other";
+    return "available";
   }
 
-  function canToggle(seatID: string): boolean {
-    const st = statuses.get(seatID);
-    if (st?.status === "confirmed") return false;
-    if (st?.status === "held" && !st.held_by_me) return false;
-    if (activeSessionSeats.includes(seatID)) return false;
-    if (!selectedSeats.includes(seatID) && selectedSeats.length >= maxSeats) return false;
-    return true;
+  const colors: Record<SeatState, React.CSSProperties> = {
+    available:    { background: "var(--seat-available)", color: "var(--text-muted)" },
+    "held-mine":  { background: "var(--held-mine)",      color: "#000" },
+    "held-other": { background: "var(--held-other)",     color: "#fff" },
+    confirmed:    { background: "var(--confirmed)",       color: "#fff" },
+  };
+
+  function isClickable(state: SeatState): boolean {
+    if (!interactive) return false;
+    return state === "available" || state === "held-mine";
   }
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
       {/* Screen */}
-      <div className="text-center">
-        <div
-          className="text-xs uppercase tracking-widest mb-1"
-          style={{ color: "var(--text-muted)" }}
-        >
+      <div style={{ textAlign: "center", width: "100%" }}>
+        <div style={{ fontSize: "0.68rem", textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--text-muted)", marginBottom: "0.35rem" }}>
           Screen
         </div>
-        <div
-          className="h-1 mx-16 rounded-full"
-          style={{
-            background: "linear-gradient(90deg, transparent, var(--accent), transparent)",
-          }}
-        />
+        <div style={{ height: "3px", background: "linear-gradient(90deg, transparent, var(--accent), transparent)", margin: "0 3rem 1rem", borderRadius: "2px" }} />
       </div>
 
       {/* Grid */}
-      <div className="flex flex-col items-center gap-1.5">
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.45rem" }}>
         {Array.from({ length: rows }, (_, r) => {
-          const rowLabel = ROWS[r];
+          const label = ROWS[r];
           return (
-            <div key={rowLabel} className="flex items-center gap-1.5">
-              <span
-                className="w-5 text-center text-xs font-mono"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {rowLabel}
-              </span>
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+              <span style={{ width: "1.4rem", textAlign: "center", fontSize: "0.65rem", color: "var(--text-muted)" }}>{label}</span>
+
               {Array.from({ length: seatsPerRow }, (_, s) => {
-                const seatID = `${rowLabel}${s + 1}`;
-                const style = getSeatStyle(seatID);
-                const clickable = canToggle(seatID);
+                const seatID = `${label}${s + 1}`;
+                const state  = getState(seatID);
+                const clickable = isClickable(state);
                 return (
                   <button
                     key={seatID}
-                    onClick={() => clickable && onToggleSeat(seatID)}
                     title={seatID}
-                    style={style}
-                    className="w-8 h-7 rounded-t-lg rounded-b-sm text-xs font-mono font-medium transition-transform hover:scale-110 disabled:scale-100 border border-transparent"
+                    onClick={() => clickable && onClickSeat(seatID, state)}
+                    style={{
+                      ...colors[state],
+                      cursor: clickable ? "pointer" : state === "available" ? "default" : "not-allowed",
+                      width: "34px", height: "30px",
+                      borderRadius: "5px 5px 3px 3px",
+                      border: "none",
+                      fontSize: "0.62rem",
+                      fontFamily: "inherit",
+                      transition: "transform 0.12s, background 0.15s",
+                      opacity: !interactive && state === "available" ? 0.45 : 1,
+                    }}
+                    onMouseEnter={(e) => { if (clickable) (e.currentTarget as HTMLElement).style.transform = "scale(1.1)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
                   >
                     {s + 1}
                   </button>
                 );
               })}
-              <span
-                className="w-5 text-center text-xs font-mono"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {rowLabel}
-              </span>
+
+              <span style={{ width: "1.4rem", textAlign: "center", fontSize: "0.65rem", color: "var(--text-muted)" }}>{label}</span>
             </div>
           );
         })}
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap justify-center gap-4 pt-2">
+      <div style={{ display: "flex", gap: "1.2rem", justifyContent: "center", marginTop: "1rem", flexWrap: "wrap" }}>
         {[
-          { label: "Available", bg: "var(--available)" },
-          { label: "Selected", bg: "var(--accent)" },
-          { label: "Your hold", bg: "var(--held-mine)" },
-          { label: "Held", bg: "var(--held-other)" },
-          { label: "Confirmed", bg: "var(--confirmed)" },
+          { label: "Available",  bg: "var(--seat-available)" },
+          { label: "Your hold",  bg: "var(--held-mine)" },
+          { label: "Other hold", bg: "var(--held-other)" },
+          { label: "Confirmed",  bg: "var(--confirmed)" },
         ].map((item) => (
-          <div key={item.label} className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-            <div
-              className="w-4 h-3 rounded-sm"
-              style={{ background: item.bg }}
-            />
+          <div key={item.label} style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.68rem", color: "var(--text-muted)" }}>
+            <div style={{ width: "13px", height: "11px", borderRadius: "3px 3px 2px 2px", background: item.bg }} />
             {item.label}
           </div>
         ))}

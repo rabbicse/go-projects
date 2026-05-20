@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Clock } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
-export function Timer({ expiresAt }: { expiresAt: number }) {
+interface Props {
+  expiresAt: number; // unix seconds
+  onExpired?: () => void;
+}
+
+export function Timer({ expiresAt, onExpired }: Props) {
   const [remaining, setRemaining] = useState(() =>
     Math.max(0, expiresAt - Math.floor(Date.now() / 1000))
   );
+  const onExpiredRef = useRef(onExpired);
+  onExpiredRef.current = onExpired;
 
   useEffect(() => {
     const id = setInterval(() => {
-      setRemaining(Math.max(0, expiresAt - Math.floor(Date.now() / 1000)));
+      const left = Math.max(0, expiresAt - Math.floor(Date.now() / 1000));
+      setRemaining(left);
+      if (left === 0) {
+        clearInterval(id);
+        onExpiredRef.current?.();
+      }
     }, 1000);
     return () => clearInterval(id);
   }, [expiresAt]);
@@ -22,10 +33,16 @@ export function Timer({ expiresAt }: { expiresAt: number }) {
 
   return (
     <div
-      className="flex items-center gap-2 text-3xl font-mono font-bold tabular-nums transition-colors"
-      style={{ color: urgent ? "#ef4444" : "var(--held-mine)" }}
+      style={{
+        fontSize: "1.8rem",
+        fontWeight: 700,
+        fontFamily: "inherit",
+        textAlign: "center",
+        color: urgent ? "var(--danger)" : "var(--held-mine)",
+        transition: "color 0.3s",
+        letterSpacing: "0.05em",
+      }}
     >
-      <Clock size={24} className={urgent ? "animate-pulse" : ""} />
       {label}
     </div>
   );

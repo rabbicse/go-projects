@@ -9,116 +9,105 @@ import type { Movie } from "@/types";
 
 export const revalidate = 30;
 
-interface Props {
-  params: Promise<{ movieId: string }>;
-}
+interface Props { params: Promise<{ movieId: string }> }
 
 export default async function MoviePage({ params }: Props) {
   const { movieId } = await params;
-
   let movie: Movie | undefined;
-  try {
-    movie = await api.movies.get(movieId);
-  } catch {
-    movie = FALLBACK_MOVIES.find((m) => m.id === movieId);
-  }
+  try { movie = await api.movies.get(movieId); }
+  catch { movie = FALLBACK_MOVIES.find((m) => m.id === movieId); }
   if (!movie) notFound();
 
   return (
-    <div>
+    <div className="page-container" style={{ paddingTop: "2.5rem", paddingBottom: "4rem" }}>
       {/* Back */}
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-sm mb-6 no-underline transition-colors hover:opacity-80"
-        style={{ color: "var(--text-muted)" }}
-      >
-        <ChevronLeft size={16} />
-        All Movies
+      <Link href="/" style={{
+        display: "inline-flex", alignItems: "center", gap: "0.3rem",
+        fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "2rem",
+        transition: "color 0.15s",
+      }}>
+        <ChevronLeft size={14} /> All Movies
       </Link>
 
-      {/* ── Hero ──────────────────────────────────────────────────────── */}
-      <div
-        className="relative rounded-2xl overflow-hidden mb-10 p-6 sm:p-10"
-        style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-      >
-        {/* Blurred backdrop */}
+      {/* ── Hero card ──────────────────────────────────────────────── */}
+      <div style={{
+        position: "relative", borderRadius: "12px", overflow: "hidden",
+        background: "var(--surface)", border: "1px solid var(--border)",
+        marginBottom: "2.5rem",
+      }}>
+        {/* blurred backdrop */}
         {movie.poster_url && (
-          <div className="absolute inset-0 opacity-10">
-            <Image src={movie.poster_url} alt="" fill className="object-cover blur-xl scale-110" />
+          <div style={{ position: "absolute", inset: 0, opacity: 0.08 }}>
+            <Image src={movie.poster_url} alt="" fill style={{ objectFit: "cover", filter: "blur(24px)", transform: "scale(1.1)" }} />
           </div>
         )}
 
-        <div className="relative z-10 flex flex-col sm:flex-row gap-8">
+        <div style={{
+          position: "relative", zIndex: 1,
+          display: "flex", flexDirection: "row", gap: "2rem", padding: "2rem",
+          flexWrap: "wrap",
+        }}>
           {/* Poster */}
-          <div
-            className="relative w-44 h-64 rounded-xl overflow-hidden shrink-0 self-center sm:self-start"
-            style={{ background: "var(--surface-2)", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }}
-          >
-            {movie.poster_url ? (
-              <Image
-                src={movie.poster_url}
-                alt={movie.title}
-                fill
-                className="object-cover"
-                sizes="176px"
-                priority
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-5xl">🎬</div>
-            )}
+          <div style={{
+            position: "relative", width: "150px", aspectRatio: "2/3",
+            borderRadius: "8px", overflow: "hidden", flexShrink: 0,
+            background: "var(--surface-2)", boxShadow: "0 16px 48px rgba(0,0,0,0.5)",
+            alignSelf: "flex-start",
+          }}>
+            {movie.poster_url
+              ? <Image src={movie.poster_url} alt={movie.title} fill sizes="150px" style={{ objectFit: "cover" }} priority />
+              : <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: "3rem" }}>🎬</div>}
           </div>
 
           {/* Details */}
-          <div className="flex flex-col justify-center">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-3 leading-tight" style={{ color: "var(--text)" }}>
+          <div style={{ flex: 1, minWidth: "240px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+            <h1 style={{
+              fontSize: "clamp(1.5rem, 3vw, 2.25rem)", fontWeight: 700,
+              color: "var(--text)", marginBottom: "0.75rem", lineHeight: 1.15, letterSpacing: "-0.02em",
+            }}>
               {movie.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-3 mb-5">
-              <div className="flex items-center gap-1.5 text-sm font-bold" style={{ color: "var(--warning)" }}>
-                <Star size={15} fill="currentColor" />
-                {movie.rating.toFixed(1)} / 10
-              </div>
+
+            {/* Meta */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.6rem", marginBottom: "1rem" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--warning)", fontWeight: 700, fontSize: "0.85rem" }}>
+                <Star size={13} fill="currentColor" /> {movie.rating.toFixed(1)}
+              </span>
               <span style={{ color: "var(--border-bright)" }}>·</span>
-              <div className="flex items-center gap-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                <Clock size={13} />
-                {movie.duration_min} min
-              </div>
+              <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", color: "var(--text-muted)", fontSize: "0.8rem" }}>
+                <Clock size={12} /> {movie.duration_min} min
+              </span>
               <span style={{ color: "var(--border-bright)" }}>·</span>
-              <div className="flex flex-wrap gap-1.5">
+              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
                 {movie.genre.map((g) => (
-                  <span
-                    key={g}
-                    className="text-xs px-2.5 py-1 rounded-full font-medium"
-                    style={{ background: "var(--surface-3)", color: "var(--text-muted)", border: "1px solid var(--border)" }}
-                  >
-                    {g}
-                  </span>
+                  <span key={g} style={{
+                    fontSize: "0.68rem", padding: "0.2rem 0.6rem", borderRadius: "5px",
+                    background: "var(--surface-3)", color: "var(--text-muted)", border: "1px solid var(--border)",
+                  }}>{g}</span>
                 ))}
               </div>
             </div>
-            <p className="text-sm leading-relaxed max-w-2xl" style={{ color: "var(--text-muted)", lineHeight: "1.8" }}>
+
+            <p style={{ fontSize: "0.82rem", lineHeight: 1.75, color: "var(--text-muted)", maxWidth: "560px" }}>
               {movie.description}
             </p>
           </div>
         </div>
       </div>
 
-      {/* ── Showtimes ─────────────────────────────────────────────────── */}
-      <h2 className="text-xl font-bold mb-4" style={{ color: "var(--text)" }}>
-        Available Showtimes
-      </h2>
+      {/* ── Showtimes ──────────────────────────────────────────────── */}
+      <p className="section-label">Available Showtimes</p>
 
       {movie.showtimes && movie.showtimes.length > 0 ? (
-        <div className="grid gap-3">
-          {movie.showtimes.map((st) => (
-            <ShowtimeCard key={st.id} showtime={st} />
-          ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+          {movie.showtimes.map((st) => <ShowtimeCard key={st.id} showtime={st} />)}
         </div>
       ) : (
-        <div
-          className="text-center py-16 rounded-xl border"
-          style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text-muted)" }}
-        >
+        <div style={{
+          textAlign: "center", padding: "4rem 1rem", borderRadius: "10px",
+          background: "var(--surface)", border: "1px solid var(--border)", color: "var(--text-muted)",
+          fontSize: "0.85rem",
+        }}>
           No showtimes scheduled.
         </div>
       )}

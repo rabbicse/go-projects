@@ -1,244 +1,435 @@
 "use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import { SeatGrid } from "@/components/SeatGrid";
-import { Checkout } from "@/components/Checkout";
+import { SeatGrid, type SeatState } from "@/components/SeatGrid";
 import type { ActiveSession, BookingResponse, Showtime } from "@/types";
 
-const MAX_SEATS = parseInt(process.env.NEXT_PUBLIC_MAX_SEATS ?? "4", 10);
+const MAX_SEATS      = parseInt(process.env.NEXT_PUBLIC_MAX_SEATS ?? "4", 10);
+const PAYMENT_TTL_S  = 180; // 3-minute payment window
 
 function getUserID(): string {
   if (typeof window === "undefined") return "";
-  const stored = sessionStorage.getItem("cinebook_user_id");
-  if (stored) return stored;
-  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-  sessionStorage.setItem("cinebook_user_id", id);
+  const k = "cinebook_user_id";
+  const v = sessionStorage.getItem(k);
+  if (v) return v;
+  const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  sessionStorage.setItem(k, id);
   return id;
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
-}
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
-}
-
-interface Props {
-  params: Promise<{ showtimeId: string }>;
+const fmt = (cents: number, cur: string) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: cur }).format(cents / 100);
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+function countdown(unix: number): string {
+  const s = Math.max(0, unix - Math.floor(Date.now() / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export default function ShowtimePage({ params }: Props) {
+type Stage = "browse" | "checkout" | "paying" | "confirmed";
+
+export default function ShowtimePage({ params }: { params: Promise<{ showtimeId: string }> }) {
   const { showtimeId } = use(params);
-  const [userID] = useState(getUserID);
+  const [userID]   = useState(getUserID);
   const [showtime, setShowtime] = useState<Showtime | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading,  setLoading]  = useState(true);
+  const [fetchErr, setFetchErr] = useState<string | null>(null);
 
-  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
-  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-  const [holdError, setHoldError] = useState<string | null>(null);
-  const [holding, setHolding] = useState(false);
-  const [confirmedBooking, setConfirmedBooking] = useState<BookingResponse | null>(null);
+  // ── booking state ──────────────────────────────────────────────
+  const [stage,     setStage]     = useState<Stage>("browse");
+  const [selected,  setSelected]  = useState<string[]>([]);   // optimistic local seats
+  const [session,   setSession]   = useState<ActiveSession | null>(null);
+  const [payExpiry, setPayExpiry] = useState<number | null>(null);
+  const [confirmed, setConfirmed] = useState<BookingResponse | null>(null);
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const [busy,      setBusy]      = useState(false);
+  const [tick,      setTick]      = useState(0); // 1-second heartbeat
 
-  const sessionRef = useRef(activeSession);
-  sessionRef.current = activeSession;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
+  // ── data fetch ─────────────────────────────────────────────────
   useEffect(() => {
-    api.showtimes
-      .get(showtimeId)
+    api.showtimes.get(showtimeId)
       .then(setShowtime)
-      .catch(() => setError("Showtime not found"))
+      .catch(() => setFetchErr("Showtime not found"))
       .finally(() => setLoading(false));
   }, [showtimeId]);
 
-  // Release session on page unload
+  // ── 1-second heartbeat for countdowns ─────────────────────────
   useEffect(() => {
-    const handler = () => {
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── auto-release when hold timer expires ───────────────────────
+  useEffect(() => {
+    if (!session) return;
+    if (session.expiresAt - Math.floor(Date.now() / 1000) <= 0) doRelease();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+
+  // ── auto-release when payment timer expires ────────────────────
+  useEffect(() => {
+    if (stage !== "paying" || !payExpiry) return;
+    if (payExpiry - Math.floor(Date.now() / 1000) <= 0) doRelease();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
+
+  // ── release on page unload ─────────────────────────────────────
+  useEffect(() => {
+    const h = () => {
       const s = sessionRef.current;
-      if (s) {
-        navigator.sendBeacon(
-          `/api/v1/sessions/${s.sessionID}`,
-          JSON.stringify({ user_id: userID })
-        );
-      }
+      if (s) navigator.sendBeacon(`/api/v1/sessions/${s.sessionID}`, JSON.stringify({ user_id: userID }));
     };
-    window.addEventListener("beforeunload", handler);
-    return () => window.removeEventListener("beforeunload", handler);
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
   }, [userID]);
 
-  const toggleSeat = useCallback(
-    (seatID: string) => {
-      if (activeSession) return;
-      setSelectedSeats((prev) =>
-        prev.includes(seatID)
-          ? prev.filter((s) => s !== seatID)
-          : prev.length < MAX_SEATS
-          ? [...prev, seatID]
-          : prev
-      );
-    },
-    [activeSession]
-  );
+  // ── helpers ────────────────────────────────────────────────────
+  function errFor(ms = 3000) {
+    return (e: unknown) => {
+      setActionErr(e instanceof Error ? e.message : "Error");
+      setTimeout(() => setActionErr(null), ms);
+    };
+  }
 
-  async function holdSeats() {
-    if (selectedSeats.length === 0) return;
-    setHolding(true);
-    setHoldError(null);
+  // ── actions ────────────────────────────────────────────────────
+
+  /**
+   * Re-hold: release existing session (if any) then hold the new seat list.
+   * Called on every seat click so the user can build up to MAX_SEATS seats
+   * without ever pressing a "Hold" button.
+   */
+  const reHold = useCallback(async (newSeats: string[]) => {
+    setBusy(true);
+    setActionErr(null);
+
+    // Optimistic UI — seats turn gold immediately
+    setSelected(newSeats);
+
+    const prev = sessionRef.current;
     try {
-      const res = await api.showtimes.hold(showtimeId, userID, selectedSeats);
-      setActiveSession({
-        sessionID: res.session_id,
+      // Release previous session if any (best-effort)
+      if (prev) {
+        try { await api.sessions.release(prev.sessionID, userID); } catch { /* expired already */ }
+        setSession(null);
+      }
+
+      if (newSeats.length === 0) {
+        setStage("browse");
+        return;
+      }
+
+      const res = await api.showtimes.hold(showtimeId, userID, newSeats);
+      setSession({
+        sessionID:  res.session_id,
         showtimeID: res.showtime_id,
-        movieID: res.movie_id,
-        seatIDs: res.seat_ids,
-        expiresAt: res.expires_at,
+        movieID:    res.movie_id,
+        seatIDs:    res.seat_ids,
+        expiresAt:  res.expires_at,
       });
-      setSelectedSeats([]);
+      setStage("checkout");
     } catch (e) {
-      setHoldError(e instanceof Error ? e.message : "Failed to hold seats");
+      // Revert optimistic selection on error
+      setSelected(prev?.seatIDs ?? []);
+      setStage(prev ? "checkout" : "browse");
+      errFor()(e);
     } finally {
-      setHolding(false);
+      setBusy(false);
+    }
+  }, [showtimeId, userID]);
+
+  const doRelease = useCallback(async () => {
+    const s = sessionRef.current;
+    setBusy(true);
+    if (s) {
+      try { await api.sessions.release(s.sessionID, userID); } catch { /* ignore */ }
+    }
+    setSession(null);
+    setSelected([]);
+    setStage("browse");
+    setPayExpiry(null);
+    setActionErr(null);
+    setBusy(false);
+  }, [userID]);
+
+  async function doConfirm() {
+    const s = sessionRef.current;
+    if (!s || busy) return;
+    setBusy(true);
+    setActionErr(null);
+    try {
+      const booking = await api.sessions.confirm(s.sessionID, userID);
+      setConfirmed(booking);
+      setSession(null);
+      setSelected([]);
+      setStage("confirmed");
+      setPayExpiry(null);
+    } catch (e) {
+      errFor()(e);
+    } finally {
+      setBusy(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-32" style={{ color: "var(--text-muted)" }}>
-        Loading showtime…
-      </div>
-    );
+  // ── seat click handler ─────────────────────────────────────────
+  function handleSeatClick(seatID: string, state: SeatState) {
+    if (busy || stage === "paying" || stage === "confirmed") return;
+
+    if (state === "available") {
+      if (selected.length >= MAX_SEATS) return; // at limit — ignore
+      reHold([...selected, seatID]);
+    } else if (state === "held-mine") {
+      const next = selected.filter(s => s !== seatID);
+      reHold(next); // re-hold remaining, or release if empty
+    }
   }
-  if (error || !showtime) {
-    return (
-      <div className="text-center py-20" style={{ color: "var(--confirmed)" }}>
-        <AlertCircle size={40} className="mx-auto mb-3" />
-        <p>{error ?? "Showtime not found"}</p>
-      </div>
-    );
-  }
+
+  // ── render ────────────────────────────────────────────────────
+  if (loading)  return <p style={{ textAlign: "center", padding: "6rem", color: "var(--text-muted)" }}>Loading…</p>;
+  if (fetchErr || !showtime) return <p style={{ textAlign: "center", padding: "6rem", color: "var(--danger)" }}>{fetchErr ?? "Not found"}</p>;
+
+  const holdLeft = session ? Math.max(0, session.expiresAt - Math.floor(Date.now() / 1000)) : 0;
+  const payLeft  = payExpiry ? Math.max(0, payExpiry - Math.floor(Date.now() / 1000)) : 0;
 
   return (
-    <div>
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1 text-sm mb-6" style={{ color: "var(--text-muted)" }}>
-        <a href="/" style={{ color: "var(--accent)" }}>
-          Movies
-        </a>
-        <ChevronRight size={14} />
-        <a href={`/movies/${showtime.movie_id}`} style={{ color: "var(--accent)" }}>
-          Movie
-        </a>
-        <ChevronRight size={14} />
-        <span>
-          {formatDate(showtime.start_time)} {formatTime(showtime.start_time)}
-        </span>
-      </nav>
+    <div className="page-container" style={{ paddingTop: "2.5rem", paddingBottom: "4rem" }}>
 
-      {/* Header */}
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+      {/* Showtime header */}
+      <div style={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        flexWrap: "wrap", gap: "1rem",
+        marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "1px solid var(--border)",
+      }}>
         <div>
-          <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text)" }}>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 600, color: "var(--text)", marginBottom: "0.2rem" }}>
             {showtime.hall}
-          </h1>
-          <p style={{ color: "var(--text-muted)" }}>
-            {formatDate(showtime.start_time)} &bull; {formatTime(showtime.start_time)} → {formatTime(showtime.end_time)}
+          </h2>
+          <p style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+            {fmtDate(showtime.start_time)} &bull; {fmtTime(showtime.start_time)} &rarr; {fmtTime(showtime.end_time)}
+            &nbsp;&bull;&nbsp;{showtime.rows * showtime.seats_per_row} seats total &bull; max {MAX_SEATS} per booking
           </p>
         </div>
-        <div
-          className="text-right rounded-xl px-4 py-2"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)" }}
-        >
-          <div className="text-2xl font-bold" style={{ color: "var(--accent)" }}>
-            {formatPrice(showtime.price_cents, showtime.currency)}
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "var(--accent)" }}>
+            {fmt(showtime.price_cents, showtime.currency)}
           </div>
-          <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            per seat · max {MAX_SEATS} seats
-          </div>
+          <div style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>per seat</div>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
-        {/* Seat Grid */}
-        <div
-          className="flex-1 rounded-xl border p-6"
-          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-        >
+      {/* Error bar */}
+      {actionErr && (
+        <div style={{
+          marginBottom: "1rem", padding: "0.5rem 0.875rem", borderRadius: "6px",
+          background: "rgba(231,76,60,0.1)", border: "1px solid var(--danger)",
+          fontSize: "0.78rem", color: "var(--danger)",
+        }}>
+          {actionErr}
+        </div>
+      )}
+
+      {/* Main: grid + panel */}
+      <div style={{ display: "flex", gap: "2rem", alignItems: "flex-start", flexWrap: "wrap" }}>
+
+        {/* Seat grid */}
+        <div style={{ flex: 1, minWidth: "280px" }}>
           <SeatGrid
             showtimeId={showtimeId}
             rows={showtime.rows}
             seatsPerRow={showtime.seats_per_row}
             userID={userID}
-            selectedSeats={selectedSeats}
-            maxSeats={MAX_SEATS}
-            onToggleSeat={toggleSeat}
-            activeSessionSeats={activeSession?.seatIDs ?? []}
+            selectedSeats={selected}
+            onClickSeat={handleSeatClick}
+            interactive={stage === "browse" || stage === "checkout"}
           />
-
-          {/* Hold button (when seats selected and no active session) */}
-          {!activeSession && selectedSeats.length > 0 && (
-            <div className="mt-6 flex flex-col items-center gap-2">
-              <button
-                onClick={holdSeats}
-                disabled={holding}
-                className="w-full max-w-xs py-3 rounded-xl font-bold text-sm transition-opacity disabled:opacity-60"
-                style={{ background: "var(--accent)", color: "#fff" }}
-              >
-                {holding ? "Holding…" : `Hold ${selectedSeats.length} seat${selectedSeats.length > 1 ? "s" : ""}`}
-              </button>
-              {holdError && (
-                <p className="text-xs text-center" style={{ color: "var(--confirmed)" }}>
-                  {holdError}
-                </p>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* Checkout sidebar */}
-        <div className="w-full lg:w-80 shrink-0">
-          {confirmedBooking ? (
-            <div
-              className="rounded-xl border p-6 text-center space-y-2"
-              style={{ background: "var(--surface)", borderColor: "#22c55e33" }}
-            >
-              <div className="text-3xl">🎟</div>
-              <h3 className="font-bold" style={{ color: "var(--success)" }}>
-                Enjoy the show!
-              </h3>
-              <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                Confirmation #{confirmedBooking.id.slice(0, 8).toUpperCase()}
+        {/* Side panel */}
+        <div style={{ width: "256px", flexShrink: 0 }}>
+
+          {/* BROWSE — nothing selected */}
+          {stage === "browse" && selected.length === 0 && (
+            <Panel>
+              <PanelTitle>Checkout</PanelTitle>
+              <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.65 }}>
+                Click any available seat to hold it.<br />
+                Click it again to release.<br />
+                Up to {MAX_SEATS} seats per booking.
               </p>
-            </div>
-          ) : activeSession ? (
-            <Checkout
-              session={activeSession}
-              userID={userID}
-              priceCents={showtime.price_cents}
-              currency={showtime.currency}
-              maxSeats={MAX_SEATS}
-              onConfirmed={(b) => {
-                setConfirmedBooking(b);
-                setActiveSession(null);
-              }}
-              onReleased={() => setActiveSession(null)}
-            />
-          ) : (
-            <div
-              className="rounded-xl border p-6 text-center"
-              style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-            >
-              <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Select up to <strong>{MAX_SEATS}</strong> seats from the grid, then hold them.
-              </p>
-            </div>
+            </Panel>
           )}
+
+          {/* CHECKOUT — seats held */}
+          {stage === "checkout" && session && (
+            <Panel>
+              <PanelTitle>Checkout</PanelTitle>
+
+              {/* Selected seats chips */}
+              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginBottom: "0.875rem" }}>
+                {session.seatIDs.map(id => (
+                  <span key={id} style={{
+                    fontSize: "0.72rem", fontWeight: 600,
+                    background: "var(--held-mine)", color: "#000",
+                    padding: "0.2rem 0.55rem", borderRadius: "4px",
+                  }}>{id}</span>
+                ))}
+              </div>
+
+              <InfoRow label="Price" value={fmt(showtime.price_cents * session.seatIDs.length, showtime.currency)} bold />
+              <InfoRow label="Session" value={session.sessionID.slice(0, 8) + "…"} />
+
+              <div style={{ margin: "0.875rem 0", textAlign: "center" }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+                  Hold expires in
+                </div>
+                <Countdown value={countdown(session.expiresAt)} urgent={holdLeft < 60} />
+              </div>
+
+              <p style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginBottom: "0.875rem", textAlign: "center" }}>
+                Click a gold seat to remove it &bull; click available seat to add
+              </p>
+
+              <Btn accent onClick={proceedToPayment} disabled={busy}>
+                Proceed to Payment →
+              </Btn>
+              <Btn danger onClick={doRelease} disabled={busy} style={{ marginTop: "0.45rem" }}>
+                Release All
+              </Btn>
+            </Panel>
+          )}
+
+          {/* PAYING */}
+          {stage === "paying" && session && (
+            <Panel>
+              <PanelTitle style={{ color: "var(--warning)" }}>Payment</PanelTitle>
+
+              <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginBottom: "0.875rem" }}>
+                {session.seatIDs.map(id => (
+                  <span key={id} style={{
+                    fontSize: "0.72rem", fontWeight: 600,
+                    background: "var(--held-mine)", color: "#000",
+                    padding: "0.2rem 0.55rem", borderRadius: "4px",
+                  }}>{id}</span>
+                ))}
+              </div>
+
+              <InfoRow label="Total" value={fmt(showtime.price_cents * session.seatIDs.length, showtime.currency)} bold />
+
+              <div style={{ margin: "0.875rem 0", textAlign: "center" }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+                  Pay within
+                </div>
+                <Countdown value={countdown(payExpiry!)} urgent={payLeft < 60} />
+              </div>
+
+              <Btn accent onClick={doConfirm} disabled={busy}>
+                {busy ? "Processing…" : "✓ Pay Now"}
+              </Btn>
+              <Btn onClick={doRelease} disabled={busy} style={{ marginTop: "0.45rem" }}>
+                Cancel
+              </Btn>
+            </Panel>
+          )}
+
+          {/* CONFIRMED */}
+          {stage === "confirmed" && confirmed && (
+            <Panel style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎟</div>
+              <div style={{ fontWeight: 700, color: "var(--success)", marginBottom: "0.25rem" }}>
+                Booking Confirmed!
+              </div>
+              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginBottom: "0.875rem" }}>
+                #{confirmed.id.slice(0, 8).toUpperCase()}
+              </div>
+              <div style={{ display: "flex", gap: "0.35rem", justifyContent: "center", flexWrap: "wrap", marginBottom: "0.875rem" }}>
+                {confirmed.seats.map(s => (
+                  <span key={s.id} style={{
+                    fontSize: "0.75rem", background: "var(--surface-2)",
+                    color: "var(--success)", padding: "0.2rem 0.5rem", borderRadius: "4px",
+                  }}>{s.id}</span>
+                ))}
+              </div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "var(--text)" }}>
+                {fmt(confirmed.total_cents, showtime.currency)}
+              </div>
+              <div style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginTop: "0.2rem" }}>paid</div>
+            </Panel>
+          )}
+
         </div>
       </div>
     </div>
+  );
+
+  function proceedToPayment() {
+    setPayExpiry(Math.floor(Date.now() / 1000) + PAYMENT_TTL_S);
+    setStage("paying");
+  }
+}
+
+/* ── primitives ─────────────────────────────────────────────────── */
+
+function Panel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      background: "var(--surface)", border: "1px solid var(--border)",
+      borderRadius: "8px", padding: "1.125rem", ...style,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function PanelTitle({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  return <h3 style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--accent)", marginBottom: "0.75rem", ...style }}>{children}</h3>;
+}
+
+function InfoRow({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.76rem", marginBottom: "0.35rem" }}>
+      <span style={{ color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ color: "var(--text)", fontWeight: bold ? 700 : 400 }}>{value}</span>
+    </div>
+  );
+}
+
+function Countdown({ value, urgent }: { value: string; urgent: boolean }) {
+  return (
+    <div style={{
+      fontSize: "1.75rem", fontWeight: 700, letterSpacing: "0.04em",
+      color: urgent ? "var(--danger)" : "var(--held-mine)", transition: "color 0.3s",
+    }}>
+      {value}
+    </div>
+  );
+}
+
+interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  accent?: boolean;
+  danger?: boolean;
+}
+function Btn({ children, accent, danger, style, disabled, ...rest }: BtnProps) {
+  return (
+    <button
+      disabled={disabled}
+      style={{
+        display: "block", width: "100%",
+        padding: "0.6rem", borderRadius: "6px", border: "none",
+        fontFamily: "inherit", fontSize: "0.8rem", fontWeight: 600,
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1, transition: "opacity 0.15s",
+        background: accent ? "var(--accent)" : danger ? "var(--danger)" : "var(--surface-2)",
+        color: accent ? "#000" : danger ? "#fff" : "var(--text-muted)",
+        ...style,
+      } as React.CSSProperties}
+      {...rest}
+    >
+      {children}
+    </button>
   );
 }

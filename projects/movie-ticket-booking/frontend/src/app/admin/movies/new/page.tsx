@@ -115,7 +115,7 @@ export default function NewMoviePage() {
 
   if (step === "done") {
     return (
-      <div className="max-w-lg mx-auto text-center py-20">
+      <div className="page-container" style={{ maxWidth: "480px", textAlign: "center", paddingTop: "5rem", paddingBottom: "4rem" }}>
         <CheckCircle size={48} className="mx-auto mb-4" style={{ color: "var(--success)" }} />
         <h2 className="text-2xl font-bold mb-2" style={{ color: "var(--text)" }}>Movie Added!</h2>
         <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
@@ -134,7 +134,7 @@ export default function NewMoviePage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="page-container" style={{ maxWidth: "600px", paddingTop: "2.5rem", paddingBottom: "4rem" }}>
       <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm mb-6 no-underline" style={{ color: "var(--text-muted)" }}>
         <ChevronLeft size={16} /> Back to Admin
       </Link>

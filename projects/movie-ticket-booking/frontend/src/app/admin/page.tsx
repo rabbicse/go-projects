@@ -56,7 +56,7 @@ export default function AdminPage() {
   );
 
   return (
-    <div>
+    <div className="page-container" style={{ paddingTop: "2.5rem", paddingBottom: "4rem" }}>
       {/* Header */}
       <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
         <div>

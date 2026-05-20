@@ -42,7 +42,7 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center">
+    <div className="page-container" style={{ minHeight: "calc(100vh - var(--nav-h))", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div
         className="w-full max-w-sm rounded-2xl border p-8"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
