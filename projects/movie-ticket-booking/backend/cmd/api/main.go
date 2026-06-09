@@ -13,8 +13,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	bookingsvc "github.com/rabbicse/movie-ticket-booking/internal/application/booking"
+	apievents "github.com/rabbicse/movie-ticket-booking/internal/application/events"
 	moviesvc "github.com/rabbicse/movie-ticket-booking/internal/application/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/config"
+	bookingdomain "github.com/rabbicse/movie-ticket-booking/internal/domain/booking"
 	mongoinfra "github.com/rabbicse/movie-ticket-booking/internal/infrastructure/persistence/mongodb"
 	redisinfra "github.com/rabbicse/movie-ticket-booking/internal/infrastructure/persistence/redis"
 	"github.com/rabbicse/movie-ticket-booking/internal/infrastructure/seeder"
@@ -56,12 +58,21 @@ func main() {
 	}
 	seedCancel()
 
+	// --- Event dispatcher ---
+	dispatcher := apievents.NewInProcess()
+	logHandler := apievents.LogHandler()
+	dispatcher.Register(bookingdomain.EventNameBookingCreated, logHandler)
+	dispatcher.Register(bookingdomain.EventNameBookingConfirmed, logHandler)
+	dispatcher.Register(bookingdomain.EventNameBookingReleased, logHandler)
+	dispatcher.Register(bookingdomain.EventNameBookingExpired, logHandler)
+
 	// --- Application services ---
 	movieService := moviesvc.NewService(movieRepo)
 	bookingService := bookingsvc.NewService(
 		seatLockRepo,
 		bookingRepo,
 		movieRepo,
+		dispatcher,
 		cfg.Booking.MaxSeatsPerSession,
 		cfg.Booking.HoldTTL,
 	)

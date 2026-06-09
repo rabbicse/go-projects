@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bookingsvc "github.com/rabbicse/movie-ticket-booking/internal/application/booking"
+	apievents "github.com/rabbicse/movie-ticket-booking/internal/application/events"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/booking"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/shared"
@@ -91,7 +92,7 @@ func (m *mockMovieRepo) UpsertMany(ctx context.Context, movies []movie.Movie) er
 // --- Helpers ---
 
 func newService(sl *mockSeatLock, br *mockBookingRepo, mr *mockMovieRepo) *bookingsvc.Service {
-	return bookingsvc.NewService(sl, br, mr, 4, 10*time.Minute)
+	return bookingsvc.NewService(sl, br, mr, apievents.NewInProcess(), 4, 10*time.Minute)
 }
 
 func sampleShowtime() movie.Showtime {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	apievents "github.com/rabbicse/movie-ticket-booking/internal/application/events"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/booking"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/shared"
@@ -16,6 +17,7 @@ type Service struct {
 	seatLock    booking.SeatLockRepository
 	bookingRepo booking.Repository
 	movieRepo   movie.Repository
+	dispatcher  apievents.Dispatcher
 	maxSeats    int
 	holdTTL     time.Duration
 }
@@ -24,6 +26,7 @@ func NewService(
 	seatLock booking.SeatLockRepository,
 	bookingRepo booking.Repository,
 	movieRepo movie.Repository,
+	dispatcher apievents.Dispatcher,
 	maxSeats int,
 	holdTTL time.Duration,
 ) *Service {
@@ -31,6 +34,7 @@ func NewService(
 		seatLock:    seatLock,
 		bookingRepo: bookingRepo,
 		movieRepo:   movieRepo,
+		dispatcher:  dispatcher,
 		maxSeats:    maxSeats,
 		holdTTL:     holdTTL,
 	}
@@ -91,6 +95,7 @@ func (s *Service) HoldSeats(ctx context.Context, userID, showtimeID string, seat
 		return booking.Session{}, fmt.Errorf("persist booking: %w", saveErr)
 	}
 
+	s.dispatcher.Dispatch(ctx, b.PopEvents())
 	return session, nil
 }
 
@@ -116,9 +121,12 @@ func (s *Service) ConfirmBooking(ctx context.Context, sessionID, userID string) 
 		return booking.Booking{}, fmt.Errorf("confirm redis session: %w", err)
 	}
 	if err := s.bookingRepo.Update(ctx, b); err != nil {
-		slog.Warn("failed to update booking status in mongodb", "error", err, "session_id", sessionID)
+		// Redis is confirmed but MongoDB failed. Client gets 500 and can safely retry —
+		// ConfirmSession (PERSIST) is idempotent on an already-confirmed key.
+		return booking.Booking{}, fmt.Errorf("update booking status: %w", err)
 	}
 
+	s.dispatcher.Dispatch(ctx, b.PopEvents())
 	return b, nil
 }
 
@@ -139,7 +147,9 @@ func (s *Service) ReleaseBooking(ctx context.Context, sessionID, userID string) 
 	b, err := s.bookingRepo.FindBySessionID(ctx, sessionID)
 	if err == nil {
 		_ = b.Release()
+		s.dispatcher.Dispatch(ctx, b.PopEvents())
 		if updateErr := s.bookingRepo.Update(ctx, b); updateErr != nil {
+			// Redis seats are already freed — this is a best-effort status sync.
 			slog.Warn("failed to mark booking as released in mongodb", "error", updateErr)
 		}
 	}
@@ -148,7 +158,6 @@ func (s *Service) ReleaseBooking(ctx context.Context, sessionID, userID string) 
 }
 
 // GetSeatMap returns real-time seat availability for a showtime.
-// HeldByMe is set correctly for the requesting userID.
 func (s *Service) GetSeatMap(ctx context.Context, showtimeID, userID string) ([]booking.SeatStatus, error) {
 	statuses, err := s.seatLock.GetSeatStatuses(ctx, showtimeID, userID)
 	if err != nil {
@@ -166,7 +175,7 @@ func (s *Service) GetUserBookings(ctx context.Context, userID string) ([]booking
 	return bookings, nil
 }
 
-// pricePerSeat exposes the helper for the handler layer.
+// ShowtimePrice exposes pricing for the handler layer.
 func (s *Service) ShowtimePrice(ctx context.Context, showtimeID string) (shared.Money, error) {
 	st, err := s.movieRepo.FindShowtime(ctx, showtimeID)
 	if err != nil {

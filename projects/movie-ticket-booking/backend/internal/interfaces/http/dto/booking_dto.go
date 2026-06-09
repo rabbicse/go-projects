@@ -9,7 +9,7 @@ import (
 // HoldSeatsRequest is the request body for POST /showtimes/:id/hold.
 type HoldSeatsRequest struct {
 	UserID  string   `json:"user_id"  binding:"required"`
-	SeatIDs []string `json:"seat_ids" binding:"required,min=1,max=4"`
+	SeatIDs []string `json:"seat_ids" binding:"required,min=1"`
 }
 
 // HoldSeatsResponse is returned after a successful hold.

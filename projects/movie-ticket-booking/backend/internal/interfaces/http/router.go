@@ -50,6 +50,7 @@ func NewRouter(
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.BodyLimit(1 << 20)) // 1 MB
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
 

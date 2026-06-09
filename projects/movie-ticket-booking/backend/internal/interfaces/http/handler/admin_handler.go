@@ -5,11 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	moviesvc "github.com/rabbicse/movie-ticket-booking/internal/application/movie"
+	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/apierr"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/dto"
 )
 
 // AdminHandler handles privileged movie/showtime management.
-// Protected by HTTP Basic Auth (admin/admin).
+// Protected by HTTP Basic Auth — credentials set via ADMIN_USER / ADMIN_PASSWORD env vars.
 type AdminHandler struct {
 	svc *moviesvc.Service
 }
@@ -22,11 +23,12 @@ func NewAdminHandler(svc *moviesvc.Service) *AdminHandler {
 func (h *AdminHandler) CreateMovie(c *gin.Context) {
 	var req dto.CreateMovieRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, apierr.New("INVALID_REQUEST", err.Error()))
 		return
 	}
 	if err := h.svc.CreateMovie(c.Request.Context(), req.ToDomain()); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		status, body := apierr.HTTPStatusFor(err)
+		c.JSON(status, body)
 		return
 	}
 	m, _ := h.svc.GetMovie(c.Request.Context(), req.ID)
@@ -37,22 +39,24 @@ func (h *AdminHandler) CreateMovie(c *gin.Context) {
 func (h *AdminHandler) CreateShowtime(c *gin.Context) {
 	var req dto.CreateShowtimeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, apierr.New("INVALID_REQUEST", err.Error()))
 		return
 	}
 	st := req.ToDomain(c.Param("movieId"))
 	if err := h.svc.CreateShowtime(c.Request.Context(), st); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		status, body := apierr.HTTPStatusFor(err)
+		c.JSON(status, body)
 		return
 	}
 	c.JSON(http.StatusCreated, dto.ToShowtimeResponse(st))
 }
 
-// GET /api/v1/admin/movies  (same as public but auth-gated for admin UI convenience)
+// GET /api/v1/admin/movies
 func (h *AdminHandler) ListMovies(c *gin.Context) {
 	movies, err := h.svc.ListMovies(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		status, body := apierr.HTTPStatusFor(err)
+		c.JSON(status, body)
 		return
 	}
 	resp := make([]dto.MovieResponse, len(movies))

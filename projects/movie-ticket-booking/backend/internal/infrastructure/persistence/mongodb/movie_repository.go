@@ -82,7 +82,7 @@ func (r *MovieRepository) FindByID(ctx context.Context, id string) (movie.Movie,
 	var doc movieDoc
 	err := r.db.Collection(moviesCollection).FindOne(ctx, bson.M{"_id": id}).Decode(&doc)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		return movie.Movie{}, fmt.Errorf("movie %s not found", id)
+		return movie.Movie{}, movie.ErrMovieNotFound
 	}
 	if err != nil {
 		return movie.Movie{}, fmt.Errorf("find movie: %w", err)
@@ -96,7 +96,7 @@ func (r *MovieRepository) FindShowtime(ctx context.Context, showtimeID string) (
 	var doc showtimeDoc
 	err := r.db.Collection(showtimesCollection).FindOne(ctx, bson.M{"_id": showtimeID}).Decode(&doc)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		return movie.Showtime{}, fmt.Errorf("showtime %s not found", showtimeID)
+		return movie.Showtime{}, movie.ErrShowtimeNotFound
 	}
 	if err != nil {
 		return movie.Showtime{}, fmt.Errorf("find showtime: %w", err)
