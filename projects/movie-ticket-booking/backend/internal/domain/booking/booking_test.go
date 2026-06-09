@@ -100,3 +100,80 @@ func TestNew_TotalPrice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(4500), b.TotalPrice.Cents())
 }
+
+func TestNew_SelfAssignsID(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, err := booking.New("s", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	require.NoError(t, err)
+	assert.NotEmpty(t, b.ID, "New() must assign a non-empty ID")
+}
+
+func TestNew_UniqueIDs(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b1, _ := booking.New("s1", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	b2, _ := booking.New("s2", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	assert.NotEqual(t, b1.ID, b2.ID, "each booking must have a unique ID")
+}
+
+func TestBooking_Expire(t *testing.T) {
+	b := makeBooking(t, booking.StatusHeld)
+	require.NoError(t, b.Expire())
+	assert.Equal(t, booking.StatusExpired, b.Status)
+}
+
+func TestBooking_Expire_NotHeld(t *testing.T) {
+	b := makeBooking(t, booking.StatusConfirmed)
+	assert.ErrorIs(t, b.Expire(), booking.ErrInvalidStatusTransition)
+}
+
+func TestBooking_PopEvents_New(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, err := booking.New("session-1", "user-1", "show-1", "movie-1", seats, shared.USD(1500), 10*time.Minute)
+	require.NoError(t, err)
+
+	evts := b.PopEvents()
+	require.Len(t, evts, 1, "New() must emit one BookingCreated event")
+	assert.Equal(t, booking.EventNameBookingCreated, evts[0].EventName())
+}
+
+func TestBooking_PopEvents_ClearsAfterPop(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, _ := booking.New("s", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	b.PopEvents() // drain creation event
+
+	evts := b.PopEvents()
+	assert.Empty(t, evts, "PopEvents() must clear events after first call")
+}
+
+func TestBooking_PopEvents_Confirm(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, _ := booking.New("s", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	b.PopEvents() // drain creation event
+
+	require.NoError(t, b.Confirm())
+	evts := b.PopEvents()
+	require.Len(t, evts, 1)
+	assert.Equal(t, booking.EventNameBookingConfirmed, evts[0].EventName())
+}
+
+func TestBooking_PopEvents_Release(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, _ := booking.New("s", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	b.PopEvents()
+
+	require.NoError(t, b.Release())
+	evts := b.PopEvents()
+	require.Len(t, evts, 1)
+	assert.Equal(t, booking.EventNameBookingReleased, evts[0].EventName())
+}
+
+func TestBooking_PopEvents_Expire(t *testing.T) {
+	seats := []booking.Seat{{ID: "A1"}}
+	b, _ := booking.New("s", "u", "st", "m", seats, shared.USD(1000), time.Minute)
+	b.PopEvents()
+
+	require.NoError(t, b.Expire())
+	evts := b.PopEvents()
+	require.Len(t, evts, 1)
+	assert.Equal(t, booking.EventNameBookingExpired, evts[0].EventName())
+}

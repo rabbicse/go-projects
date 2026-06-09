@@ -19,11 +19,11 @@ func USD(cents int64) Money {
 func (m Money) Cents() int64    { return m.cents }
 func (m Money) Currency() string { return m.currency }
 
-func (m Money) Add(other Money) Money {
+func (m Money) Add(other Money) (Money, error) {
 	if m.currency != other.currency {
-		panic("cannot add money of different currencies")
+		return Money{}, fmt.Errorf("cannot add %s and %s", m.currency, other.currency)
 	}
-	return Money{cents: m.cents + other.cents, currency: m.currency}
+	return Money{cents: m.cents + other.cents, currency: m.currency}, nil
 }
 
 func (m Money) Multiply(n int) Money {

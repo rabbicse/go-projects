@@ -70,6 +70,8 @@ func main() {
 	router := ginhttp.NewRouter(movieService, bookingService, ginhttp.RouterConfig{
 		AllowedOrigins: []string{"*"},
 		MaxSeats:       cfg.Booking.MaxSeatsPerSession,
+		AdminUser:      cfg.Admin.User,
+		AdminPassword:  cfg.Admin.Password,
 	})
 
 	srv := &http.Server{

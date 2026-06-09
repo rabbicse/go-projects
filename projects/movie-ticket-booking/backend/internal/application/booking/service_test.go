@@ -45,7 +45,7 @@ func (m *mockBookingRepo) Save(ctx context.Context, b booking.Booking) error {
 	return m.Called(ctx, b).Error(0)
 }
 func (m *mockBookingRepo) Update(ctx context.Context, b booking.Booking) error {
-	return m.Called(ctx, mock.AnythingOfType("booking.Booking")).Error(0)
+	return m.Called(ctx, b).Error(0)
 }
 func (m *mockBookingRepo) FindByID(ctx context.Context, id string) (booking.Booking, error) {
 	args := m.Called(ctx, id)

@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "Bash(mkdir -p /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/analysis /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/memory /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/architecture /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/decisions /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/tasks /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/docs)",
+      "Bash(mkdir -p /Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude/marketing)",
+      "Bash(go test *)",
+      "Bash(git stash *)",
+      "Bash(go vet *)"
+    ],
+    "additionalDirectories": [
+      "/Users/mehmet/Projects/github/go-projects/projects/movie-ticket-booking/.claude"
     ]
   }
 }

@@ -80,10 +80,15 @@ func (s *Service) HoldSeats(ctx context.Context, userID, showtimeID string, seat
 	if err != nil {
 		return booking.Session{}, err
 	}
-	b.ID = uuid.New().String()
 
 	if saveErr := s.bookingRepo.Save(ctx, b); saveErr != nil {
-		slog.Warn("failed to persist held booking", "error", saveErr, "session_id", sessionID)
+		// Compensating transaction: release the Redis lock so the seats aren't stuck
+		// in a held state with no corresponding booking record in MongoDB.
+		if releaseErr := s.seatLock.ReleaseSession(ctx, sessionID); releaseErr != nil {
+			slog.Error("failed to release seats after mongodb save failure — manual cleanup required",
+				"release_error", releaseErr, "save_error", saveErr, "session_id", sessionID)
+		}
+		return booking.Session{}, fmt.Errorf("persist booking: %w", saveErr)
 	}
 
 	return session, nil

@@ -12,6 +12,7 @@ type Config struct {
 	Redis   RedisConfig
 	MongoDB MongoDBConfig
 	Booking BookingConfig
+	Admin   AdminConfig
 }
 
 type ServerConfig struct {
@@ -23,19 +24,24 @@ type ServerConfig struct {
 }
 
 type RedisConfig struct {
-	Addr     string `env:"REDIS_ADDR"     envDefault:"192.168.0.50:6379"`
+	Addr     string `env:"REDIS_ADDR"     envDefault:"localhost:6379"`
 	Password string `env:"REDIS_PASSWORD" envDefault:""`
 	DB       int    `env:"REDIS_DB"       envDefault:"0"`
 }
 
 type MongoDBConfig struct {
-	URI      string `env:"MONGODB_URI"      envDefault:"mongodb://192.168.0.50:27017"`
+	URI      string `env:"MONGODB_URI"      envDefault:"mongodb://localhost:27017"`
 	Database string `env:"MONGODB_DATABASE" envDefault:"movie_ticket_booking"`
 }
 
 type BookingConfig struct {
 	MaxSeatsPerSession int           `env:"MAX_SEATS_PER_SESSION" envDefault:"4"`
 	HoldTTL            time.Duration `env:"HOLD_TTL"              envDefault:"10m"`
+}
+
+type AdminConfig struct {
+	User     string `env:"ADMIN_USER"     envDefault:"admin"`
+	Password string `env:"ADMIN_PASSWORD" envDefault:"changeme"`
 }
 
 func Load() (*Config, error) {

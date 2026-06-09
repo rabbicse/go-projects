@@ -12,6 +12,9 @@ cd backend
 # Run locally (needs redis + mongodb running)
 make run
 
+# Run with race detector
+make run-race
+
 # Unit tests (no Docker)
 make test-unit
 
@@ -21,17 +24,27 @@ make test-integration
 # All tests
 make test
 
+# Run a single test by name
+go test -v -run TestHoldSeats ./internal/...
+
 # Build binary
 make build
 
 # Lint
 make lint    # requires golangci-lint
+
+# Tidy dependencies
+make tidy
+
+# Sync swagger.json from internal/docs to top-level docs/
+make sync-swagger
 ```
 
 ### Frontend (Next.js)
 
 ```bash
 cd frontend
+cp .env.local.example .env.local   # set NEXT_PUBLIC_API_URL + NEXT_PUBLIC_MAX_SEATS
 npm install
 npm run dev          # dev server on :3000
 npm run build
@@ -47,6 +60,8 @@ make down
 make logs
 ```
 
+Root-level aliases: `make backend-run`, `make backend-test-unit`, `make backend-test-integration`, `make frontend-dev`, `make frontend-build`.
+
 ### Load tests (requires k6)
 
 ```bash
@@ -54,7 +69,12 @@ make load-test                # normal load scenario
 make load-test-smoke          # quick sanity check
 make load-test-spike          # burst traffic
 make load-test-concurrent     # 500 VUs on same seats (Redis NX lock test)
+
+# Custom base URL
+k6 run --env BASE_URL=http://my-server:8080 load-tests/booking.js
 ```
+
+Load test results are saved to `load-tests/results/summary.json`. 409 Conflict responses are expected under concurrent load and are not counted as errors.
 
 ## Architecture
 
@@ -67,12 +87,14 @@ domain/          # Zero external dependencies. Entities, VOs, repo interfaces.
   shared/        # Money value object
 application/     # Use cases. Depends only on domain interfaces.
   booking/service.go   # HoldSeats, ConfirmBooking, ReleaseBooking, GetSeatMap
-  movie/service.go     # ListMovies, GetShowtime
+  movie/service.go     # ListMovies, GetShowtime, CreateMovie, CreateShowtime
 infrastructure/  # Concrete implementations.
   persistence/redis/   # Lua-script atomic multi-seat locks
   persistence/mongodb/ # Movie + Booking MongoDB repositories (v2 driver)
   seeder/              # Seeds movies + showtimes on first boot
 interfaces/http/ # Gin handlers, DTOs, CORS/logger middleware
+  handler/       # MovieHandler, BookingHandler, AdminHandler
+  docs/          # Embedded swagger.json (served at /api/v1/docs/swagger.json)
 cmd/api/main.go  # Wiring: config → infra → services → router → server
 ```
 
@@ -91,6 +113,24 @@ session:{sessionID}          →  JSON(Session)
 
 `movies`, `showtimes`, `bookings` — see `infrastructure/persistence/mongodb/` for BSON document structs.
 
+### API surface
+
+| Method | Endpoint | Notes |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/api/v1/docs` | Swagger UI |
+| `GET` | `/api/v1/docs/swagger.json` | OpenAPI spec |
+| `GET` | `/api/v1/movies` | List all movies |
+| `GET` | `/api/v1/movies/:id` | Get movie |
+| `GET` | `/api/v1/showtimes/:id` | Get showtime |
+| `GET` | `/api/v1/showtimes/:showtimeId/seats?user_id=X` | Real-time seat map |
+| `POST` | `/api/v1/showtimes/:showtimeId/hold` | Hold 1–4 seats |
+| `PUT` | `/api/v1/sessions/:sessionId/confirm` | Confirm hold |
+| `DELETE` | `/api/v1/sessions/:sessionId` | Release hold |
+| `GET` | `/api/v1/users/:userId/bookings` | Booking history |
+| `GET/POST` | `/api/v1/admin/movies` | Admin — Basic Auth (`admin:admin`) |
+| `POST` | `/api/v1/admin/movies/:movieId/showtimes` | Admin — add showtime |
+
 ### Frontend — Next.js 15 App Router
 
 - Server components: `/app/page.tsx` (movie list), `/app/movies/[movieId]/page.tsx` (movie detail)
@@ -104,6 +144,8 @@ session:{sessionID}          →  JSON(Session)
 All backend config is via environment variables — see `backend/.env.example`.  
 `MAX_SEATS_PER_SESSION` (default `4`) controls the booking limit end-to-end: enforced in `BookingService`, `BookingHandler`, and frontend UI.  
 `HOLD_TTL` (default `10m`) sets Redis TTL for held sessions and MongoDB `expires_at` field.
+
+Frontend env vars: `NEXT_PUBLIC_API_URL` (default `http://localhost:8080`) and `NEXT_PUBLIC_MAX_SEATS` (default `4`) — see `frontend/.env.local.example`.
 
 ## Testing conventions
 

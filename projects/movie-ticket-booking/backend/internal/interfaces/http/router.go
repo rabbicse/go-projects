@@ -37,6 +37,8 @@ const swaggerUIHTML = `<!DOCTYPE html>
 type RouterConfig struct {
 	AllowedOrigins []string
 	MaxSeats       int
+	AdminUser      string
+	AdminPassword  string
 }
 
 func NewRouter(
@@ -46,6 +48,8 @@ func NewRouter(
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
+	r.Use(middleware.RequestID())
+	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
 
@@ -81,8 +85,8 @@ func NewRouter(
 		// User history
 		api.GET("/users/:userId/bookings", bookH.GetUserBookings)
 
-		// Admin — HTTP Basic Auth (admin/admin)
-		admin := api.Group("/admin", gin.BasicAuth(gin.Accounts{"admin": "admin"}))
+		// Admin — credentials from environment variables
+		admin := api.Group("/admin", gin.BasicAuth(gin.Accounts{cfg.AdminUser: cfg.AdminPassword}))
 		{
 			admin.GET("/movies", adminH.ListMovies)
 			admin.POST("/movies", adminH.CreateMovie)
