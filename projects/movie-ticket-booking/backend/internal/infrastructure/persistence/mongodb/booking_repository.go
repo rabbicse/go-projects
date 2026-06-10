@@ -48,11 +48,27 @@ func NewBookingRepository(db *mongo.Database) *BookingRepository {
 func (r *BookingRepository) EnsureIndexes(ctx context.Context) error {
 	coll := r.db.Collection(bookingsCollection)
 	_, err := coll.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		// Each session maps to exactly one booking.
 		{Keys: bson.D{{Key: "session_id", Value: 1}}, Options: options.Index().SetUnique(true)},
-		{Keys: bson.D{{Key: "user_id", Value: 1}}},
+		// Compound index covers FindByUserID (user_id equality + created_at sort in one index).
+		{Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "created_at", Value: -1}}},
+		// Supports FindByShowtime.
 		{Keys: bson.D{{Key: "showtime_id", Value: 1}}},
+		// Admin / analytics queries filtered by status.
 		{Keys: bson.D{{Key: "status", Value: 1}}},
-		{Keys: bson.D{{Key: "created_at", Value: -1}}},
+		// TTL index: auto-expire held and expired booking documents once expires_at has passed.
+		// Confirmed and released bookings are excluded by the partial filter so they are kept permanently.
+		{
+			Keys: bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().
+				SetExpireAfterSeconds(0).
+				SetPartialFilterExpression(bson.D{
+					{Key: "status", Value: bson.D{{Key: "$in", Value: bson.A{
+						string(booking.StatusHeld),
+						string(booking.StatusExpired),
+					}}}},
+				}),
+		},
 	})
 	return err
 }

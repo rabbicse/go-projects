@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	moviesvc "github.com/rabbicse/movie-ticket-booking/internal/application/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/apierr"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/dto"
 )
@@ -12,10 +11,10 @@ import (
 // AdminHandler handles privileged movie/showtime management.
 // Protected by HTTP Basic Auth — credentials set via ADMIN_USER / ADMIN_PASSWORD env vars.
 type AdminHandler struct {
-	svc *moviesvc.Service
+	svc MovieService
 }
 
-func NewAdminHandler(svc *moviesvc.Service) *AdminHandler {
+func NewAdminHandler(svc MovieService) *AdminHandler {
 	return &AdminHandler{svc: svc}
 }
 

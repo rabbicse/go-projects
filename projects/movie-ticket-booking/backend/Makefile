@@ -4,7 +4,7 @@ BINARY := bin/api
 PKG    := ./cmd/api/...
 
 run:
-	go run $(PKG)
+	@set -a; [ -f .env ] && . ./.env; set +a; go run $(PKG)
 
 build:
 	go build -o $(BINARY) $(PKG)
@@ -27,7 +27,7 @@ test: test-unit test-integration
 
 # Run with race detector
 run-race:
-	go run -race $(PKG)
+	@set -a; [ -f .env ] && . ./.env; set +a; go run -race $(PKG)
 
 # Sync swagger.json from internal/docs to top-level docs/
 sync-swagger:

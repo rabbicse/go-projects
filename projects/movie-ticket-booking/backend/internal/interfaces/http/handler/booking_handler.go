@@ -4,18 +4,17 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	bookingsvc "github.com/rabbicse/movie-ticket-booking/internal/application/booking"
 	"github.com/rabbicse/movie-ticket-booking/internal/domain/booking"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/apierr"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/dto"
 )
 
 type BookingHandler struct {
-	svc      *bookingsvc.Service
+	svc      BookingService
 	maxSeats int
 }
 
-func NewBookingHandler(svc *bookingsvc.Service, maxSeats int) *BookingHandler {
+func NewBookingHandler(svc BookingService, maxSeats int) *BookingHandler {
 	return &BookingHandler{svc: svc, maxSeats: maxSeats}
 }
 

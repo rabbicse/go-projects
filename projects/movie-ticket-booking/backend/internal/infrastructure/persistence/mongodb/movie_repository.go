@@ -51,8 +51,9 @@ func NewMovieRepository(db *mongo.Database) *MovieRepository {
 }
 
 func (r *MovieRepository) EnsureIndexes(ctx context.Context) error {
+	// Compound index: covers findShowtimesForMovie (movie_id filter + start_time sort).
 	_, err := r.db.Collection(showtimesCollection).Indexes().CreateOne(ctx,
-		mongo.IndexModel{Keys: bson.D{{Key: "movie_id", Value: 1}}},
+		mongo.IndexModel{Keys: bson.D{{Key: "movie_id", Value: 1}, {Key: "start_time", Value: 1}}},
 	)
 	return err
 }
@@ -64,16 +65,37 @@ func (r *MovieRepository) FindAll(ctx context.Context) ([]movie.Movie, error) {
 	}
 	defer cur.Close(ctx)
 
-	var docs []movieDoc
-	if err := cur.All(ctx, &docs); err != nil {
+	var movieDocs []movieDoc
+	if err := cur.All(ctx, &movieDocs); err != nil {
 		return nil, fmt.Errorf("decode movies: %w", err)
 	}
+	if len(movieDocs) == 0 {
+		return nil, nil
+	}
 
-	movies := make([]movie.Movie, len(docs))
-	for i, d := range docs {
+	// Load all showtimes in a single query and group by movie_id — avoids N+1.
+	stCur, err := r.db.Collection(showtimesCollection).Find(ctx, bson.D{},
+		options.Find().SetSort(bson.D{{Key: "start_time", Value: 1}}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("find all showtimes: %w", err)
+	}
+	defer stCur.Close(ctx)
+
+	var stDocs []showtimeDoc
+	if err := stCur.All(ctx, &stDocs); err != nil {
+		return nil, fmt.Errorf("decode showtimes: %w", err)
+	}
+
+	stMap := make(map[string][]movie.Showtime, len(stDocs))
+	for _, d := range stDocs {
+		stMap[d.MovieID] = append(stMap[d.MovieID], toShowtime(d))
+	}
+
+	movies := make([]movie.Movie, len(movieDocs))
+	for i, d := range movieDocs {
 		movies[i] = toMovie(d)
-		showtimes, _ := r.findShowtimesForMovie(ctx, d.ID)
-		movies[i].Showtimes = showtimes
+		movies[i].Showtimes = stMap[d.ID]
 	}
 	return movies, nil
 }
@@ -133,7 +155,8 @@ func (r *MovieRepository) UpsertMany(ctx context.Context, movies []movie.Movie) 
 }
 
 func (r *MovieRepository) findShowtimesForMovie(ctx context.Context, movieID string) ([]movie.Showtime, error) {
-	cur, err := r.db.Collection(showtimesCollection).Find(ctx, bson.M{"movie_id": movieID})
+	opts := options.Find().SetSort(bson.D{{Key: "start_time", Value: 1}})
+	cur, err := r.db.Collection(showtimesCollection).Find(ctx, bson.M{"movie_id": movieID}, opts)
 	if err != nil {
 		return nil, err
 	}

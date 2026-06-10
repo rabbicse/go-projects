@@ -20,6 +20,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Link>
             <div className="nav-right">
               <UserBadge />
+              <Link href="/bookings" className="nav-link">
+                My Bookings
+              </Link>
               <Link href="/api/v1/docs" target="_blank" rel="noopener noreferrer" className="nav-link">
                 API Docs ↗
               </Link>

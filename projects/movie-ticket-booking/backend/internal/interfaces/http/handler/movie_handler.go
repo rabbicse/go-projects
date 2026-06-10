@@ -4,16 +4,15 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	moviesvc "github.com/rabbicse/movie-ticket-booking/internal/application/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/apierr"
 	"github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/dto"
 )
 
 type MovieHandler struct {
-	svc *moviesvc.Service
+	svc MovieService
 }
 
-func NewMovieHandler(svc *moviesvc.Service) *MovieHandler {
+func NewMovieHandler(svc MovieService) *MovieHandler {
 	return &MovieHandler{svc: svc}
 }
 

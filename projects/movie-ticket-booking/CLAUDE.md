@@ -54,8 +54,9 @@ npm run type-check   # TypeScript only
 ### Full stack via Docker Compose
 
 ```bash
-make dev-up          # start Redis + MongoDB only
-make up              # start everything (build + run)
+make dev-up          # start Redis + MongoDB only (backend + frontend run locally)
+make monitoring-up   # start Redis + MongoDB + Prometheus + Grafana (backend runs locally)
+make up              # build + start everything (databases, backend, frontend, monitoring)
 make down
 make logs
 ```

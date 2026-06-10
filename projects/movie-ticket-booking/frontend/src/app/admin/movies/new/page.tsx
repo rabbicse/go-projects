@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Plus, Loader2, CheckCircle } from "lucide-react";
 
+const ADMIN_KEY = "cinebook_admin";
+
 function authHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? (sessionStorage.getItem(ADMIN_KEY) ?? "") : "";
   return {
     "Content-Type": "application/json",
-    Authorization: "Basic " + btoa("admin:admin"),
+    Authorization: "Basic " + token,
   };
 }
 
@@ -62,7 +65,7 @@ export default function NewMoviePage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to create movie");
+      if (!res.ok) throw new Error(data.message ?? "Failed to create movie");
       setCreatedMovieId(data.id);
       setStep("showtime");
     } catch (e) {
@@ -93,7 +96,7 @@ export default function NewMoviePage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to create showtime");
+      if (!res.ok) throw new Error(data.message ?? "Failed to create showtime");
       setStep("done");
     } catch (e) {
       setStError(e instanceof Error ? e.message : "Error");

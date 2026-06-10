@@ -2,6 +2,7 @@ package booking_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -181,6 +182,30 @@ func TestConfirmBooking_WrongUser(t *testing.T) {
 
 	_, err := svc.ConfirmBooking(context.Background(), "session-1", "u1")
 	assert.ErrorIs(t, err, booking.ErrUnauthorized)
+}
+
+// TestHoldSeats_CompensatingTransaction verifies that when the MongoDB save fails
+// after a successful Redis hold, ReleaseSession is called to free the seats.
+// This prevents seats from being stuck in a held state with no booking record.
+func TestHoldSeats_CompensatingTransaction(t *testing.T) {
+	sl := &mockSeatLock{}
+	br := &mockBookingRepo{}
+	mr := &mockMovieRepo{}
+	svc := newService(sl, br, mr)
+	ctx := context.Background()
+
+	mr.On("FindShowtime", mock.Anything, "show-1").Return(sampleShowtime(), nil)
+	sl.On("HoldSeats", mock.Anything, mock.AnythingOfType("booking.HoldRequest")).
+		Return(booking.Session{ID: "sess-comp", SeatIDs: []string{"A1"}}, nil)
+	br.On("Save", mock.Anything, mock.AnythingOfType("booking.Booking")).
+		Return(errors.New("mongodb: write conflict"))
+	sl.On("ReleaseSession", mock.Anything, mock.AnythingOfType("string")).Return(nil)
+
+	_, err := svc.HoldSeats(ctx, "u1", "show-1", []string{"A1"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "persist booking")
+	sl.AssertCalled(t, "ReleaseSession", mock.Anything, mock.AnythingOfType("string"))
 }
 
 func TestReleaseBooking_Success(t *testing.T) {

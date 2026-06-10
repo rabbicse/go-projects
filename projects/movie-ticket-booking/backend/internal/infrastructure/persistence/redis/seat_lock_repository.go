@@ -110,7 +110,8 @@ func (r *SeatLockRepository) HoldSeats(ctx context.Context, req booking.HoldRequ
 	).Err()
 
 	if err != nil {
-		if strings.HasPrefix(err.Error(), "SEAT_TAKEN:") {
+		// Redis 7 prefixes Lua error replies with "ERR " — use Contains, not HasPrefix.
+		if strings.Contains(err.Error(), "SEAT_TAKEN:") {
 			return booking.Session{}, booking.ErrSeatAlreadyHeld
 		}
 		return booking.Session{}, fmt.Errorf("hold seats lua: %w", err)

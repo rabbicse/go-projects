@@ -59,3 +59,8 @@ export interface ActiveSession {
   seatIDs: string[];
   expiresAt: number; // unix timestamp
 }
+
+export interface ErrorResponse {
+  code: string;
+  message: string;
+}

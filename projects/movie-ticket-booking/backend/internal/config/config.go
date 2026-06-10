@@ -2,6 +2,7 @@ package config
 
 import (
 	"log/slog"
+	"net/url"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -52,9 +53,19 @@ func Load() (*Config, error) {
 	slog.Info("config loaded",
 		"server_port", cfg.Server.Port,
 		"redis_addr", cfg.Redis.Addr,
-		"mongodb_uri", cfg.MongoDB.URI,
+		"mongo_host", mongoHost(cfg.MongoDB.URI), // never log the full URI — may contain password
 		"max_seats", cfg.Booking.MaxSeatsPerSession,
 		"hold_ttl", cfg.Booking.HoldTTL,
 	)
 	return cfg, nil
+}
+
+// mongoHost extracts only the host:port from a MongoDB URI so credentials
+// in the URI (mongodb://user:pass@host:port/db) are never written to logs.
+func mongoHost(uri string) string {
+	u, err := url.Parse(uri)
+	if err != nil || u.Host == "" {
+		return "unknown"
+	}
+	return u.Host
 }

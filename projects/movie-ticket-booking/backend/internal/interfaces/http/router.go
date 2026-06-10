@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	bookingsvc "github.com/rabbicse/movie-ticket-booking/internal/application/booking"
 	moviesvc "github.com/rabbicse/movie-ticket-booking/internal/application/movie"
 	"github.com/rabbicse/movie-ticket-booking/internal/docs"
@@ -49,10 +50,14 @@ func NewRouter(
 	r := gin.New()
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
+	r.Use(middleware.Metrics())
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.BodyLimit(1 << 20)) // 1 MB
 	r.Use(middleware.Logger())
 	r.Use(middleware.CORS(cfg.AllowedOrigins))
+
+	// Prometheus scrape endpoint — not counted in application metrics.
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

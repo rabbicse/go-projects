@@ -43,11 +43,13 @@ func (r *SeatLockRepository) CleanConfirmedSeats(ctx context.Context, showtimeID
 		return 0, fmt.Errorf("pipeline ttl for cleanup: %w", err)
 	}
 
-	// Step 3: collect keys whose TTL == -1 (confirmed, no expiry)
+	// Step 3: collect keys whose TTL == -1 (confirmed, no expiry).
+	// go-redis v9 returns time.Duration(-1) for PERSIST keys (case -2,-1 branch skips
+	// the *precision multiplication), so compare to -1 not to -time.Second.
 	var toDelete []string
 	for i, key := range seatKeys {
 		ttl, _ := ttlCmds[i].Result()
-		if ttl == -time.Second {
+		if ttl == time.Duration(-1) {
 			toDelete = append(toDelete, key)
 		}
 	}

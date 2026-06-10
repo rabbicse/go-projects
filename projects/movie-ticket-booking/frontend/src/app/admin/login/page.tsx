@@ -27,7 +27,7 @@ export default function AdminLoginPage() {
       });
 
       if (res.ok || res.status === 200) {
-        sessionStorage.setItem(ADMIN_KEY, "1");
+        sessionStorage.setItem(ADMIN_KEY, btoa(`${username}:${password}`));
         router.push("/admin");
       } else if (res.status === 401) {
         setError("Invalid credentials. Try admin / admin.");

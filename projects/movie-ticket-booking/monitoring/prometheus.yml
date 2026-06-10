@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Full-stack (make up): backend runs as a Docker service named "backend".
+  - job_name: movie-ticket-booking
+    static_configs:
+      - targets: ["backend:8080"]
+    metrics_path: /metrics
+
+  # Dev mode (make dev-up): backend runs on the host.
+  # host.docker.internal resolves on Mac/Windows natively; on Linux it requires
+  # extra_hosts: ["host.docker.internal:host-gateway"] (already set below).
+  - job_name: movie-ticket-booking-dev
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+    metrics_path: /metrics

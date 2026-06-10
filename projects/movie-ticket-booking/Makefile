@@ -1,22 +1,26 @@
-.PHONY: up down dev-up dev-down backend-test load-test logs ps
+.PHONY: up down dev-up dev-down monitoring-up backend-test load-test logs ps
 
 # ── Docker Compose ────────────────────────────────────────────────────────────
 
-# Start all services (production-like)
+# Start the full stack: databases + backend + frontend + monitoring
 up:
 	docker compose up --build -d
 
-# Stop all services
+# Stop all services and remove containers
 down:
 	docker compose down
 
-# Start only databases (for local development)
+# Start only databases (Redis + MongoDB) — backend + frontend run locally
 dev-up:
 	docker compose up redis mongodb -d
 
 # Stop databases
 dev-down:
 	docker compose down redis mongodb
+
+# Start databases + Prometheus + Grafana (backend runs locally, scraped via host.docker.internal)
+monitoring-up:
+	docker compose up redis mongodb prometheus grafana -d
 
 # Follow logs
 logs:

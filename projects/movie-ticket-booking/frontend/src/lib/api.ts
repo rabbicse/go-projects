@@ -1,5 +1,6 @@
 import type {
   BookingResponse,
+  ErrorResponse,
   HoldResponse,
   Movie,
   SeatStatus,
@@ -7,6 +8,17 @@ import type {
 } from "@/types";
 
 const BASE = "/api/v1";
+
+export class ApiError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 async function request<T>(
   method: string,
@@ -21,7 +33,14 @@ async function request<T>(
   });
   if (res.status === 204) return undefined as T;
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = data as Partial<ErrorResponse>;
+    throw new ApiError(
+      err.code ?? "UNKNOWN_ERROR",
+      err.message ?? `HTTP ${res.status}`,
+      res.status
+    );
+  }
   return data as T;
 }
 

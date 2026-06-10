@@ -15,8 +15,9 @@ func Logger() gin.HandlerFunc {
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"status", c.Writer.Status(),
-			"latency", time.Since(start).String(),
+			"latency_ms", time.Since(start).Milliseconds(),
 			"ip", c.ClientIP(),
+			"request_id", c.GetString(RequestIDKey),
 		)
 	}
 }

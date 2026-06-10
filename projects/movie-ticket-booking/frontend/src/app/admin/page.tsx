@@ -10,9 +10,10 @@ import type { Movie } from "@/types";
 const ADMIN_KEY = "cinebook_admin";
 
 function authHeaders(): HeadersInit {
+  const token = typeof window !== "undefined" ? (sessionStorage.getItem(ADMIN_KEY) ?? "") : "";
   return {
     "Content-Type": "application/json",
-    Authorization: "Basic " + btoa("admin:admin"),
+    Authorization: "Basic " + token,
   };
 }
 
