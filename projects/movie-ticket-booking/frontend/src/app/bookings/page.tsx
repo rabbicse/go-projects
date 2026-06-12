@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Ticket, ChevronLeft } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { getAuthUserID } from "@/lib/auth";
 import type { BookingResponse } from "@/types";
 
 function getUserID(): string {
   if (typeof window === "undefined") return "";
-  return sessionStorage.getItem("cinebook_user_id") ?? "";
+  return getAuthUserID() ?? sessionStorage.getItem("cinebook_user_id") ?? "";
 }
 
 const fmt = (cents: number, cur: string) =>
@@ -16,6 +17,9 @@ const fmt = (cents: number, cur: string) =>
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 const STATUS_STYLES: Record<string, { bg: string; color: string; border: string }> = {
   confirmed: { bg: "rgba(46,213,115,0.12)", color: "var(--success)", border: "var(--success)" },
@@ -115,10 +119,13 @@ export default function BookingsPage() {
                   </div>
                   <div>
                     <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text)", marginBottom: "0.2rem" }}>
-                      #{b.id.slice(0, 8).toUpperCase()}
+                      {b.movie_title ?? `#${b.id.slice(0, 8).toUpperCase()}`}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                      {fmtDate(b.created_at)}
+                      {b.hall && b.start_time
+                        ? <>{b.hall} &bull; {fmtDate(b.start_time)} {fmtTime(b.start_time)}</>
+                        : fmtDate(b.created_at)
+                      }
                       {b.seats.length > 0 && (
                         <> &bull; {b.seats.map((seat) => seat.id).join(", ")}</>
                       )}

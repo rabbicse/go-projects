@@ -1,0 +1,226 @@
+{"time":"2026-06-12T23:02:58.356327+06:00","level":"INFO","msg":"config loaded","server_port":8080,"redis_addr":"192.168.0.50:6379","mongo_host":"192.168.0.50:27017","max_seats":4,"hold_ttl":600000000000}
+{"time":"2026-06-12T23:02:58.461193+06:00","level":"INFO","msg":"seed skipped: movies already exist","count":5}
+{"time":"2026-06-12T23:02:58.468351+06:00","level":"INFO","msg":"built-in HS256 auth enabled","refresh_ttl":"168h0m0s"}
+{"time":"2026-06-12T23:02:58.468367+06:00","level":"INFO","msg":"booking config","max_seats":4,"hold_ttl":"10m0s"}
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (8 handlers)
+[GIN-debug] HEAD   /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (8 handlers)
+[GIN-debug] GET    /metrics                  --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.WrapH.func10 (8 handlers)
+[GIN-debug] GET    /health                   --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func1 (8 handlers)
+[GIN-debug] GET    /api/v1/docs              --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func2 (8 handlers)
+[GIN-debug] GET    /api/v1/docs/swagger.json --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func3 (8 handlers)
+[GIN-debug] POST   /api/v1/auth/register     --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Register-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/login        --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Login-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/refresh      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Refresh-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/logout       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Logout-fm (8 handlers)
+[GIN-debug] GET    /api/v1/auth/profile      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).GetProfile-fm (9 handlers)
+[GIN-debug] GET    /api/v1/movies            --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).ListMovies-fm (8 handlers)
+[GIN-debug] GET    /api/v1/movies/:id        --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).GetMovie-fm (8 handlers)
+[GIN-debug] GET    /api/v1/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).GetShowtime-fm (8 handlers)
+[GIN-debug] GET    /api/v1/showtimes/:showtimeId/seats --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).GetSeatMap-fm (8 handlers)
+[GIN-debug] POST   /api/v1/showtimes/:showtimeId/hold --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).HoldSeats-fm (10 handlers)
+[GIN-debug] POST   /api/v1/sessions/:sessionId/pay --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*PaymentHandler).Pay-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/sessions/:sessionId/confirm --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).ConfirmBooking-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/sessions/:sessionId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).ReleaseBooking-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/:userId/bookings --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).GetUserBookings-fm (9 handlers)
+[GIN-debug] GET    /api/v1/admin/stats       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).GetStats-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/movies      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).ListMovies-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).CreateMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UpdateMovie-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/admin/movies/:movieId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).DeleteMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/publish --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).PublishMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/unpublish --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UnpublishMovie-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies/:movieId/poster --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UploadPoster-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies/:movieId/showtimes --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).CreateShowtime-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UpdateShowtime-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/admin/movies/:movieId/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).DeleteShowtime-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters    --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).ListTheaters-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/theaters    --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).CreateTheater-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters/:theaterId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).GetTheater-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).UpdateTheater-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/disable --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).DisableTheater-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters/:theaterId/screens --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).ListScreens-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/theaters/:theaterId/screens --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).CreateScreen-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/screens/:screenId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).UpdateScreen-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/screens/:screenId/disable --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).DisableScreen-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/shows       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).ListShows-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/shows       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).CreateShow-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/shows/:showId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).GetShow-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/shows/:showId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).UpdateShow-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/shows/:showId/cancel --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).CancelShow-fm (10 handlers)
+{"time":"2026-06-12T23:02:58.468732+06:00","level":"INFO","msg":"server started","addr":"0.0.0.0:8080"}
+{"time":"2026-06-12T23:02:58.468928+06:00","level":"ERROR","msg":"server error","error":"listen tcp 0.0.0.0:8080: bind: address already in use"}
+exit status 1
+{"time":"2026-06-12T23:58:15.366284+06:00","level":"INFO","msg":"config loaded","server_port":8080,"redis_addr":"192.168.0.50:6379","mongo_host":"192.168.0.50:27017","max_seats":4,"hold_ttl":600000000000}
+{"time":"2026-06-12T23:58:15.454935+06:00","level":"INFO","msg":"seed skipped: movies already exist","count":5}
+{"time":"2026-06-12T23:58:15.458826+06:00","level":"INFO","msg":"built-in HS256 auth enabled","refresh_ttl":"168h0m0s"}
+{"time":"2026-06-12T23:58:15.45885+06:00","level":"INFO","msg":"booking config","max_seats":4,"hold_ttl":"10m0s"}
+[GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
+ - using env:	export GIN_MODE=release
+ - using code:	gin.SetMode(gin.ReleaseMode)
+
+[GIN-debug] GET    /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (8 handlers)
+[GIN-debug] HEAD   /uploads/*filepath        --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (8 handlers)
+[GIN-debug] GET    /metrics                  --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.WrapH.func10 (8 handlers)
+[GIN-debug] GET    /health                   --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func1 (8 handlers)
+[GIN-debug] GET    /api/v1/docs              --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func2 (8 handlers)
+[GIN-debug] GET    /api/v1/docs/swagger.json --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http.NewRouter.func3 (8 handlers)
+[GIN-debug] POST   /api/v1/auth/register     --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Register-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/login        --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Login-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/refresh      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Refresh-fm (8 handlers)
+[GIN-debug] POST   /api/v1/auth/logout       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).Logout-fm (8 handlers)
+[GIN-debug] GET    /api/v1/auth/profile      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AuthHandler).GetProfile-fm (9 handlers)
+[GIN-debug] GET    /api/v1/movies            --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).ListMovies-fm (8 handlers)
+[GIN-debug] GET    /api/v1/movies/:id        --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).GetMovie-fm (8 handlers)
+[GIN-debug] GET    /api/v1/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*MovieHandler).GetShowtime-fm (8 handlers)
+[GIN-debug] GET    /api/v1/showtimes/:showtimeId/seats --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).GetSeatMap-fm (8 handlers)
+[GIN-debug] POST   /api/v1/showtimes/:showtimeId/hold --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).HoldSeats-fm (10 handlers)
+[GIN-debug] POST   /api/v1/sessions/:sessionId/pay --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*PaymentHandler).Pay-fm (9 handlers)
+[GIN-debug] PUT    /api/v1/sessions/:sessionId/confirm --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).ConfirmBooking-fm (9 handlers)
+[GIN-debug] DELETE /api/v1/sessions/:sessionId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).ReleaseBooking-fm (9 handlers)
+[GIN-debug] GET    /api/v1/users/:userId/bookings --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*BookingHandler).GetUserBookings-fm (9 handlers)
+[GIN-debug] GET    /api/v1/admin/stats       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).GetStats-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/movies      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).ListMovies-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies      --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).CreateMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UpdateMovie-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/admin/movies/:movieId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).DeleteMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/publish --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).PublishMovie-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/unpublish --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UnpublishMovie-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies/:movieId/poster --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UploadPoster-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/movies/:movieId/showtimes --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).CreateShowtime-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/movies/:movieId/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).UpdateShowtime-fm (10 handlers)
+[GIN-debug] DELETE /api/v1/admin/movies/:movieId/showtimes/:showtimeId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*AdminHandler).DeleteShowtime-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters    --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).ListTheaters-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/theaters    --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).CreateTheater-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters/:theaterId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).GetTheater-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).UpdateTheater-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/disable --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).DisableTheater-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/theaters/:theaterId/screens --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).ListScreens-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/theaters/:theaterId/screens --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).CreateScreen-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/screens/:screenId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).UpdateScreen-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/theaters/:theaterId/screens/:screenId/disable --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*TheaterHandler).DisableScreen-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/shows       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).ListShows-fm (10 handlers)
+[GIN-debug] POST   /api/v1/admin/shows       --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).CreateShow-fm (10 handlers)
+[GIN-debug] GET    /api/v1/admin/shows/:showId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).GetShow-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/shows/:showId --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).UpdateShow-fm (10 handlers)
+[GIN-debug] PUT    /api/v1/admin/shows/:showId/cancel --> github.com/rabbicse/movie-ticket-booking/internal/interfaces/http/handler.(*ShowHandler).CancelShow-fm (10 handlers)
+{"time":"2026-06-12T23:58:15.45999+06:00","level":"INFO","msg":"server started","addr":"0.0.0.0:8080"}
+{"time":"2026-06-12T23:58:24.753741+06:00","level":"INFO","msg":"request","method":"GET","path":"/health","status":200,"latency_ms":0,"ip":"::1","request_id":"bd191afd-4873-443d-a629-8d94511e23d9"}
+{"time":"2026-06-12T23:58:38.381533+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":18,"ip":"::1","request_id":"0aaeb63f-f26c-4b4f-9b3f-e701d1458a5d"}
+{"time":"2026-06-12T23:58:41.053189+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":10,"ip":"::1","request_id":"ac67d9f0-e61a-49f0-9890-5db9b10496f7"}
+{"time":"2026-06-12T23:59:28.381807+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":436,"ip":"::1","request_id":"a4a744a7-a132-4b96-b873-49721efdf8b0"}
+{"time":"2026-06-12T23:59:28.429317+06:00","level":"INFO","msg":"request","method":"PUT","path":"/api/v1/admin/movies/dune-part-two/publish","status":200,"latency_ms":30,"ip":"::1","request_id":"4726a166-5b4c-4937-9302-6163ec7f4df4"}
+{"time":"2026-06-12T23:59:28.457164+06:00","level":"INFO","msg":"request","method":"PUT","path":"/api/v1/admin/movies/oppenheimer/publish","status":200,"latency_ms":15,"ip":"::1","request_id":"da40c024-3165-48b9-b236-4e97139e0074"}
+{"time":"2026-06-12T23:59:28.482931+06:00","level":"INFO","msg":"request","method":"PUT","path":"/api/v1/admin/movies/the-batman/publish","status":200,"latency_ms":13,"ip":"::1","request_id":"cb765ea5-508d-441b-ae60-940a4358f32d"}
+{"time":"2026-06-12T23:59:28.513164+06:00","level":"INFO","msg":"request","method":"PUT","path":"/api/v1/admin/movies/inception/publish","status":200,"latency_ms":18,"ip":"::1","request_id":"bb63ccb9-c991-4f53-8fa0-8bcf839bc9e3"}
+{"time":"2026-06-12T23:59:28.619909+06:00","level":"INFO","msg":"request","method":"PUT","path":"/api/v1/admin/movies/interstellar/publish","status":200,"latency_ms":94,"ip":"::1","request_id":"b472aefa-2551-4707-855a-4794561717d7"}
+{"time":"2026-06-12T23:59:28.666133+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":32,"ip":"::1","request_id":"88b9f3be-dc28-4c71-8b91-c2998e0fdba7"}
+{"time":"2026-06-12T23:59:39.641247+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"66ace2d5-364b-4be0-91e8-7c295a6e138a"}
+{"time":"2026-06-12T23:59:39.700106+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"8f3c315a-41f5-4265-88fe-ad4fde169c8b"}
+{"time":"2026-06-12T23:59:41.836925+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1","status":200,"latency_ms":11,"ip":"::1","request_id":"0e4c4dae-f3f1-4996-9a11-f62b8b3f196f"}
+{"time":"2026-06-12T23:59:41.840655+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1","status":200,"latency_ms":11,"ip":"::1","request_id":"2ea6693f-9ac8-4357-86a9-9a96ac524d56"}
+{"time":"2026-06-12T23:59:41.958998+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":8,"ip":"::1","request_id":"5606d764-8e67-4935-9448-31cdbce8f86b"}
+{"time":"2026-06-12T23:59:41.976877+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":26,"ip":"::1","request_id":"c2f38c88-1e68-4424-bd64-3bb70a6d2955"}
+{"time":"2026-06-12T23:59:41.977114+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":26,"ip":"::1","request_id":"0b86c2f3-761a-4935-b78a-b6745b4a0761"}
+{"time":"2026-06-12T23:59:41.977114+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":26,"ip":"::1","request_id":"2279bf40-356b-4bfe-b947-adee272abbe5"}
+{"time":"2026-06-12T23:59:42.388745+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/users/7e3a507266c8/bookings","status":401,"latency_ms":0,"ip":"::1","request_id":"4aadc612-1860-4d4d-9ca3-5eb7eb9ec911"}
+{"time":"2026-06-12T23:59:44.800746+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":780,"ip":"::1","request_id":"466d4504-5845-4457-b438-71c8314649dc"}
+{"time":"2026-06-12T23:59:45.304506+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":674,"ip":"::1","request_id":"640e1af3-2af0-45ff-aa0f-e8538bbc7631"}
+{"time":"2026-06-12T23:59:45.880525+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":666,"ip":"::1","request_id":"4c978894-80e7-455b-9601-005c9cba427b"}
+{"time":"2026-06-12T23:59:46.851966+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":855,"ip":"::1","request_id":"11739730-99ae-4d3b-bf8a-6ea5ebd84936"}
+{"time":"2026-06-12T23:59:47.649977+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":676,"ip":"::1","request_id":"9fd2b3a9-5d32-4a56-8e99-499bbe6d4475"}
+{"time":"2026-06-12T23:59:48.910032+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":727,"ip":"::1","request_id":"e3018950-beb7-428f-a1dd-76663d1b28b8"}
+{"time":"2026-06-12T23:59:50.081895+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":834,"ip":"::1","request_id":"5cc9b77e-234f-4ba6-bdbb-41ba1b068cb3"}
+{"time":"2026-06-12T23:59:50.568789+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":770,"ip":"::1","request_id":"75bf9e15-8cfd-490f-9797-68d489aa4cd3"}
+{"time":"2026-06-12T23:59:51.481682+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":704,"ip":"::1","request_id":"caecbda3-f632-4ce0-b40d-13a68b560bcb"}
+{"time":"2026-06-12T23:59:52.834574+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":691,"ip":"::1","request_id":"d48de7cd-c300-4e77-a53b-df79863cd7d2"}
+{"time":"2026-06-12T23:59:53.656652+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":598,"ip":"::1","request_id":"83c6d903-672e-4448-b427-f82508eeab1a"}
+{"time":"2026-06-13T00:24:38.705558+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":430,"ip":"::1","request_id":"32630777-7170-437b-a279-f30878074694"}
+{"time":"2026-06-13T00:25:22.874819+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":438,"ip":"::1","request_id":"fc2cfb96-07b7-4081-bc4d-e46089001d19"}
+{"time":"2026-06-13T00:25:22.875143+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":442,"ip":"::1","request_id":"3ed5e13b-6233-4d6c-9dfa-a017c0d30380"}
+{"time":"2026-06-13T00:25:22.875219+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":439,"ip":"::1","request_id":"560dd99a-8853-4ad4-8f1d-0347845734c2"}
+{"time":"2026-06-13T00:25:24.974023+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":584,"ip":"::1","request_id":"675081bf-65bc-4ad9-b0e9-02e1f5ddfb98"}
+{"time":"2026-06-13T00:25:25.471463+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":31,"ip":"::1","request_id":"c4f3910b-ccb5-492f-a284-c3016c26f018"}
+{"time":"2026-06-13T00:25:25.471886+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":32,"ip":"::1","request_id":"a128f818-6218-44c9-a09b-d685c8fc6159"}
+{"time":"2026-06-13T00:25:25.471994+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":32,"ip":"::1","request_id":"4b5723d0-c3fa-4e62-8231-60b8c49c5bf4"}
+{"time":"2026-06-13T00:25:25.804498+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":17,"ip":"::1","request_id":"0915afd8-ea8d-4eac-a91b-0c8abb3e3e52"}
+{"time":"2026-06-13T00:25:26.222225+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":16,"ip":"::1","request_id":"7ff02e4e-172d-475b-b8cc-5567e35f1aa0"}
+{"time":"2026-06-13T00:25:26.239689+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":8,"ip":"::1","request_id":"8d30b199-9f7b-4908-9382-68d482204f46"}
+{"time":"2026-06-13T00:25:26.499262+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"03415607-7fe3-4458-8a3d-af525745ca5e"}
+{"time":"2026-06-13T00:25:27.79948+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":437,"ip":"::1","request_id":"3da44a04-5d17-4b2f-a923-69bc1c29cb98"}
+{"time":"2026-06-13T00:25:28.178696+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":15,"ip":"::1","request_id":"81f1f6a9-043a-4a4e-83e2-b5af0e4317e9"}
+{"time":"2026-06-13T00:25:28.892824+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":11,"ip":"::1","request_id":"5b91516b-ead3-4355-8b54-1ab67a9abf75"}
+{"time":"2026-06-13T00:25:29.349807+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":724,"ip":"::1","request_id":"f338d57a-995c-45aa-b98b-361c0f3d9d9d"}
+{"time":"2026-06-13T00:25:30.135186+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":44,"ip":"::1","request_id":"d01371cd-f8a7-423d-b8c7-f8f7246ea1c8"}
+{"time":"2026-06-13T00:25:30.395551+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":583,"ip":"::1","request_id":"185d4652-df6d-4cb6-9d57-13cba5f2e361"}
+{"time":"2026-06-13T00:25:30.538996+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":530,"ip":"::1","request_id":"f65efe33-e495-49e9-bc25-32521dae84f9"}
+{"time":"2026-06-13T00:25:31.373995+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":15,"ip":"::1","request_id":"13b59246-f04a-42b9-84c3-874053d186be"}
+{"time":"2026-06-13T00:25:31.676691+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":85,"ip":"::1","request_id":"8c6b1daa-b83a-46c2-bca5-113e0e102aae"}
+{"time":"2026-06-13T00:25:31.746452+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":114,"ip":"::1","request_id":"f2c9daa3-e47f-4199-9abc-19f883008bb3"}
+{"time":"2026-06-13T00:25:32.026052+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":707,"ip":"::1","request_id":"04149c6e-14e7-4c00-8a4e-bd3221f2c760"}
+{"time":"2026-06-13T00:25:32.522512+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":8,"ip":"::1","request_id":"0b18350c-fda5-4dcf-bdfc-ea883f8c2f3d"}
+{"time":"2026-06-13T00:25:32.738915+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":7,"ip":"::1","request_id":"20374cc8-a8dc-42fe-9a81-6f12fbeec428"}
+{"time":"2026-06-13T00:25:32.887621+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":72,"ip":"::1","request_id":"1be03f56-0013-4aec-a090-6ad6673c8069"}
+{"time":"2026-06-13T00:25:33.647015+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":11,"ip":"::1","request_id":"f9e912b5-a9fa-4824-a67d-c984295ed0eb"}
+{"time":"2026-06-13T00:25:33.699959+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":63,"ip":"::1","request_id":"8de8c39d-f2be-4ae0-bb20-1ea8c3a77e2e"}
+{"time":"2026-06-13T00:25:33.700129+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":63,"ip":"::1","request_id":"9fa0546d-4714-4327-9d46-9e02e4140023"}
+{"time":"2026-06-13T00:25:34.328887+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":524,"ip":"::1","request_id":"24f1f981-a297-4b68-8bb0-70584d58862f"}
+{"time":"2026-06-13T00:25:34.746353+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":17,"ip":"::1","request_id":"9c752fcb-cec9-48cc-ad88-2647424dcf3e"}
+{"time":"2026-06-13T00:25:34.905327+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":496,"ip":"::1","request_id":"eb1cd7c9-46d9-4300-a205-aa53f10715ee"}
+{"time":"2026-06-13T00:25:35.303205+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":46,"ip":"::1","request_id":"9262eff3-0bf0-40e9-8732-6183d238818a"}
+{"time":"2026-06-13T00:25:35.4762+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":3,"ip":"::1","request_id":"2ad636da-e2c7-4e00-bab4-92d4b793fa1b"}
+{"time":"2026-06-13T00:25:35.4762+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":7,"ip":"::1","request_id":"596ca13f-3576-4b52-a7e8-e882e7bbe9e4"}
+{"time":"2026-06-13T00:25:35.492721+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":20,"ip":"::1","request_id":"c8816f17-e9ea-4ced-a7d7-83825090c766"}
+{"time":"2026-06-13T00:25:35.984244+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":20,"ip":"::1","request_id":"6718a068-dc3a-4b56-bde0-6bb1f09c6426"}
+{"time":"2026-06-13T00:25:35.984245+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":20,"ip":"::1","request_id":"d04c2cd1-2b85-4358-9eee-c0b33ddc4bf4"}
+{"time":"2026-06-13T00:25:36.00888+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":45,"ip":"::1","request_id":"f76b6c60-8755-425c-a707-eeeae98c81cc"}
+{"time":"2026-06-13T00:26:25.395503+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":17,"ip":"::1","request_id":"d63b2e0a-e579-4c53-9980-e8a2dd4e0ddb"}
+{"time":"2026-06-13T00:26:25.435724+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"2cf3f753-3123-4336-8ff0-fe0e4dfdd1e7"}
+{"time":"2026-06-13T00:26:26.327734+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1","status":200,"latency_ms":12,"ip":"::1","request_id":"bc15caa0-ad38-480a-ab24-bc2a4b30579b"}
+{"time":"2026-06-13T00:26:26.401074+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":8,"ip":"::1","request_id":"10cae551-18e7-4e03-bb7f-61caaeba2f01"}
+{"time":"2026-06-13T00:26:26.401074+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":8,"ip":"::1","request_id":"0bfae594-0173-4e63-b631-88c12ea76f1f"}
+{"time":"2026-06-13T00:26:26.495745+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1","status":200,"latency_ms":5,"ip":"::1","request_id":"f5cc868f-43bc-4a85-a5d6-4c4e39c87b64"}
+{"time":"2026-06-13T00:26:26.56662+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":8,"ip":"::1","request_id":"07923a50-0fff-400f-8e4b-73b1f0ff8017"}
+{"time":"2026-06-13T00:26:26.566803+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/showtimes/dune2-hall1-1/seats","status":200,"latency_ms":8,"ip":"::1","request_id":"bd436b4d-32f9-4b47-88bb-16f37d8315ff"}
+{"time":"2026-06-13T00:26:27.957329+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/users/909cf9bcb6bd/bookings","status":401,"latency_ms":0,"ip":"::1","request_id":"2cc0229f-7e8c-41ef-b98d-a0d11b14f48a"}
+{"time":"2026-06-13T00:26:29.060058+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":433,"ip":"::1","request_id":"66eb1647-5a4f-4720-a417-5713c86e9479"}
+{"time":"2026-06-13T00:26:29.516699+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":21,"ip":"::1","request_id":"36e67d47-3469-4aa0-a126-fe000bed65fb"}
+{"time":"2026-06-13T00:26:30.550424+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":554,"ip":"::1","request_id":"d36f9f27-c9e7-43dc-ae82-b43e93d3b2f6"}
+{"time":"2026-06-13T00:26:30.988652+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":613,"ip":"::1","request_id":"2cbe6f97-2952-46ee-a771-f37f15deb8e5"}
+{"time":"2026-06-13T00:26:31.201068+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":640,"ip":"::1","request_id":"5e0aa5a3-c9ce-4867-a8eb-7114bf6fb4a5"}
+{"time":"2026-06-13T00:26:31.368314+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":20,"ip":"::1","request_id":"9126c8b1-a17c-46f0-ba7a-33deb4571095"}
+{"time":"2026-06-13T00:26:32.140858+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":16,"ip":"::1","request_id":"ec83cd1e-d9dd-4ba8-85e2-ddd8ae11e2cb"}
+{"time":"2026-06-13T00:26:32.32389+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":13,"ip":"::1","request_id":"10dff66f-2bff-4480-a430-8a1d1195d937"}
+{"time":"2026-06-13T00:26:32.41522+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":18,"ip":"::1","request_id":"70571f8f-3949-4237-8a10-5e2c4e27c33f"}
+{"time":"2026-06-13T00:26:32.754372+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":627,"ip":"::1","request_id":"c3b04018-cafd-4895-8863-18590ba8cb9b"}
+{"time":"2026-06-13T00:26:33.03911+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":17,"ip":"::1","request_id":"1ce6c23a-4b2a-4f06-aae1-aaedbd074d74"}
+{"time":"2026-06-13T00:26:33.562773+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":12,"ip":"::1","request_id":"6ebe99b2-03d2-48ca-b0be-e76249b03ca4"}
+{"time":"2026-06-13T00:26:33.768726+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":15,"ip":"::1","request_id":"fdc63380-7f67-4511-b052-feacac2df757"}
+{"time":"2026-06-13T00:26:34.54382+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":4,"ip":"::1","request_id":"15c2fb8b-d558-4eb4-80eb-bfb5f3860d77"}
+{"time":"2026-06-13T00:26:35.488556+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":473,"ip":"::1","request_id":"79b37e7f-5dfe-4684-8989-b820e4669ae4"}
+{"time":"2026-06-13T00:26:36.372259+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":20,"ip":"::1","request_id":"75ba25e4-bf26-4f42-a9c5-a7199fdfe35f"}
+{"time":"2026-06-13T00:26:37.34074+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":871,"ip":"::1","request_id":"a109ead5-e6cc-430a-a094-04bf0a170f09"}
+{"time":"2026-06-13T00:26:37.389148+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":5,"ip":"::1","request_id":"3d957404-de5a-4062-8dc0-b37f6f8b936a"}
+{"time":"2026-06-13T00:26:37.816826+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":822,"ip":"::1","request_id":"91a43a2c-68d7-4979-9ae1-b7e8f02ff754"}
+{"time":"2026-06-13T00:26:38.104981+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":19,"ip":"::1","request_id":"26f17da0-69da-48d1-82c6-cd0efd09d7ff"}
+{"time":"2026-06-13T00:26:38.163431+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":830,"ip":"::1","request_id":"0cf2223c-57db-49d3-b0c4-11e16cfbbaa2"}
+{"time":"2026-06-13T00:26:39.180025+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":6,"ip":"::1","request_id":"cfc23641-ad69-4f02-a838-c31d4741ef41"}
+{"time":"2026-06-13T00:26:39.238205+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":36,"ip":"::1","request_id":"efb7d844-79ab-4c23-b945-7338b9d6f207"}
+{"time":"2026-06-13T00:26:39.301396+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":15,"ip":"::1","request_id":"267d04f5-83d7-4eef-a39c-c9111e9182c0"}
+{"time":"2026-06-13T00:26:39.982475+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":4,"ip":"::1","request_id":"28bc3d10-86f1-43e3-99a3-bfbc3fc4e90b"}
+{"time":"2026-06-13T00:26:40.199569+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":9,"ip":"::1","request_id":"b922995e-be11-4dca-b47c-eb88d98d63a1"}
+{"time":"2026-06-13T00:26:40.204344+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":4,"ip":"::1","request_id":"a39ec87a-8f3e-44ad-af8d-9935cb120bce"}
+{"time":"2026-06-13T00:26:40.204952+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"70624c3b-d9d9-46b7-bfcd-b9313fec459a"}
+{"time":"2026-06-13T00:26:40.647838+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":523,"ip":"::1","request_id":"fd70851a-b215-4b9e-b21f-b8d4c48b8735"}
+{"time":"2026-06-13T00:26:41.533153+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":15,"ip":"::1","request_id":"e08434bd-2265-4205-915c-ea8cfa57e5ef"}
+{"time":"2026-06-13T00:26:41.934716+06:00","level":"INFO","msg":"request","method":"POST","path":"/api/v1/auth/login","status":200,"latency_ms":595,"ip":"::1","request_id":"54a8a651-fd1c-4f5a-b785-b659e70009a7"}
+{"time":"2026-06-13T00:26:42.22399+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":5,"ip":"::1","request_id":"fc1726a8-3a6b-486b-ad1e-51983dda833f"}
+{"time":"2026-06-13T00:26:42.23004+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":4,"ip":"::1","request_id":"9089352a-f837-4c04-abb1-6380a8796c4d"}
+{"time":"2026-06-13T00:26:42.230412+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":11,"ip":"::1","request_id":"98f4cc46-6326-4c3f-b53f-02354b170e80"}
+{"time":"2026-06-13T00:26:42.378891+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/stats","status":200,"latency_ms":16,"ip":"::1","request_id":"244afb0c-781f-4b59-b18a-c4d924bcdb41"}
+{"time":"2026-06-13T00:26:43.028185+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/theaters","status":200,"latency_ms":4,"ip":"::1","request_id":"67eb1499-ab9f-4dea-8c49-74035fbab4cc"}
+{"time":"2026-06-13T00:26:43.028226+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/shows","status":200,"latency_ms":4,"ip":"::1","request_id":"1dbebe81-a307-497e-ab6e-bf21d7f13ae3"}
+{"time":"2026-06-13T00:26:43.033542+06:00","level":"INFO","msg":"request","method":"GET","path":"/api/v1/admin/movies","status":200,"latency_ms":9,"ip":"::1","request_id":"96155fb6-a59b-497d-b43b-0b96e04d2cce"}

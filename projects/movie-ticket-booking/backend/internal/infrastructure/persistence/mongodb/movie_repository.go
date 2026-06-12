@@ -20,13 +20,16 @@ const (
 
 // movieDoc is the MongoDB representation of a Movie.
 type movieDoc struct {
-	ID          string   `bson:"_id"`
-	Title       string   `bson:"title"`
-	Genre       []string `bson:"genre"`
-	Rating      float64  `bson:"rating"`
-	PosterURL   string   `bson:"poster_url"`
-	Description string   `bson:"description"`
-	DurationMin int      `bson:"duration_min"`
+	ID          string    `bson:"_id"`
+	Title       string    `bson:"title"`
+	Genre       []string  `bson:"genre"`
+	Rating      float64   `bson:"rating"`
+	PosterURL   string    `bson:"poster_url"`
+	Description string    `bson:"description"`
+	DurationMin int       `bson:"duration_min"`
+	Published   bool      `bson:"published"`
+	CreatedAt   time.Time `bson:"created_at"`
+	UpdatedAt   time.Time `bson:"updated_at"`
 }
 
 // showtimeDoc is the MongoDB representation of a Showtime.
@@ -140,6 +143,42 @@ func (r *MovieRepository) SaveShowtime(ctx context.Context, s movie.Showtime) er
 	return err
 }
 
+func (r *MovieRepository) Update(ctx context.Context, m movie.Movie) error {
+	doc := fromMovie(m)
+	res, err := r.db.Collection(moviesCollection).ReplaceOne(ctx, bson.M{"_id": m.ID}, doc)
+	if err != nil {
+		return fmt.Errorf("update movie: %w", err)
+	}
+	if res.MatchedCount == 0 {
+		return movie.ErrMovieNotFound
+	}
+	return nil
+}
+
+func (r *MovieRepository) Delete(ctx context.Context, id string) error {
+	res, err := r.db.Collection(moviesCollection).DeleteOne(ctx, bson.M{"_id": id})
+	if err != nil {
+		return fmt.Errorf("delete movie: %w", err)
+	}
+	if res.DeletedCount == 0 {
+		return movie.ErrMovieNotFound
+	}
+	// Best-effort cleanup of associated showtimes.
+	_, _ = r.db.Collection(showtimesCollection).DeleteMany(ctx, bson.M{"movie_id": id})
+	return nil
+}
+
+func (r *MovieRepository) DeleteShowtime(ctx context.Context, showtimeID string) error {
+	res, err := r.db.Collection(showtimesCollection).DeleteOne(ctx, bson.M{"_id": showtimeID})
+	if err != nil {
+		return fmt.Errorf("delete showtime: %w", err)
+	}
+	if res.DeletedCount == 0 {
+		return movie.ErrShowtimeNotFound
+	}
+	return nil
+}
+
 func (r *MovieRepository) UpsertMany(ctx context.Context, movies []movie.Movie) error {
 	for _, m := range movies {
 		if err := r.Save(ctx, m); err != nil {
@@ -181,6 +220,9 @@ func toMovie(d movieDoc) movie.Movie {
 		PosterURL:   d.PosterURL,
 		Description: d.Description,
 		DurationMin: d.DurationMin,
+		Published:   d.Published,
+		CreatedAt:   d.CreatedAt,
+		UpdatedAt:   d.UpdatedAt,
 	}
 }
 
@@ -193,6 +235,9 @@ func fromMovie(m movie.Movie) movieDoc {
 		PosterURL:   m.PosterURL,
 		Description: m.Description,
 		DurationMin: m.DurationMin,
+		Published:   m.Published,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
 	}
 }
 

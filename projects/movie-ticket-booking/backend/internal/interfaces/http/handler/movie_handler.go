@@ -16,17 +16,19 @@ func NewMovieHandler(svc MovieService) *MovieHandler {
 	return &MovieHandler{svc: svc}
 }
 
-// GET /movies
+// GET /movies — returns only published movies.
 func (h *MovieHandler) ListMovies(c *gin.Context) {
-	movies, err := h.svc.ListMovies(c.Request.Context())
+	all, err := h.svc.ListMovies(c.Request.Context())
 	if err != nil {
 		status, body := apierr.HTTPStatusFor(err)
 		c.JSON(status, body)
 		return
 	}
-	resp := make([]dto.MovieResponse, len(movies))
-	for i, m := range movies {
-		resp[i] = dto.ToMovieResponse(m)
+	resp := make([]dto.MovieResponse, 0, len(all))
+	for _, m := range all {
+		if m.Published {
+			resp = append(resp, dto.ToMovieResponse(m))
+		}
 	}
 	c.JSON(http.StatusOK, resp)
 }

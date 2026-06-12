@@ -2,6 +2,12 @@ package booking
 
 import "context"
 
+// BookingStats holds aggregate counts used by the admin dashboard.
+type BookingStats struct {
+	TotalConfirmed    int64
+	TotalRevenueCents int64
+}
+
 // Repository persists confirmed/released bookings (MongoDB).
 type Repository interface {
 	Save(ctx context.Context, b Booking) error
@@ -10,6 +16,7 @@ type Repository interface {
 	FindBySessionID(ctx context.Context, sessionID string) (Booking, error)
 	FindByUserID(ctx context.Context, userID string) ([]Booking, error)
 	FindByShowtime(ctx context.Context, showtimeID string) ([]Booking, error)
+	GetStats(ctx context.Context) (BookingStats, error)
 }
 
 // SeatLockRepository manages short-lived seat locks and session state in Redis.

@@ -15,20 +15,22 @@ type CreateMovieRequest struct {
 	PosterURL   string   `json:"poster_url"`
 	Description string   `json:"description"`
 	DurationMin int      `json:"duration_min" binding:"required,min=1"`
+	Published   bool     `json:"published"`
 }
 
 type CreateShowtimeRequest struct {
-	ID          string    `json:"id"           binding:"required"`
-	Hall        string    `json:"hall"         binding:"required"`
-	StartTime   time.Time `json:"start_time"   binding:"required"`
-	EndTime     time.Time `json:"end_time"     binding:"required"`
-	Rows        int       `json:"rows"         binding:"required,min=1,max=26"`
+	ID          string    `json:"id"            binding:"required"`
+	Hall        string    `json:"hall"          binding:"required"`
+	StartTime   time.Time `json:"start_time"    binding:"required"`
+	EndTime     time.Time `json:"end_time"      binding:"required"`
+	Rows        int       `json:"rows"          binding:"required,min=1,max=26"`
 	SeatsPerRow int       `json:"seats_per_row" binding:"required,min=1,max=30"`
-	PriceCents  int64     `json:"price_cents"  binding:"required,min=0"`
-	Currency    string    `json:"currency"     binding:"required"`
+	PriceCents  int64     `json:"price_cents"   binding:"required,min=0"`
+	Currency    string    `json:"currency"      binding:"required"`
 }
 
 func (r CreateMovieRequest) ToDomain() movie.Movie {
+	now := time.Now().UTC()
 	return movie.Movie{
 		ID:          r.ID,
 		Title:       r.Title,
@@ -37,6 +39,9 @@ func (r CreateMovieRequest) ToDomain() movie.Movie {
 		PosterURL:   r.PosterURL,
 		Description: r.Description,
 		DurationMin: r.DurationMin,
+		Published:   r.Published,
+		CreatedAt:   now,
+		UpdatedAt:   now,
 	}
 }
 
@@ -51,4 +56,31 @@ func (r CreateShowtimeRequest) ToDomain(movieID string) movie.Showtime {
 		SeatsPerRow: r.SeatsPerRow,
 		Price:       shared.NewMoney(r.PriceCents, r.Currency),
 	}
+}
+
+type UpdateMovieRequest struct {
+	Title       string   `json:"title"        binding:"required"`
+	Genre       []string `json:"genre"        binding:"required,min=1"`
+	Rating      float64  `json:"rating"       binding:"required,min=0,max=10"`
+	PosterURL   string   `json:"poster_url"`
+	Description string   `json:"description"`
+	DurationMin int      `json:"duration_min" binding:"required,min=1"`
+}
+
+type UpdateShowtimeRequest struct {
+	Hall        string    `json:"hall"          binding:"required"`
+	StartTime   time.Time `json:"start_time"    binding:"required"`
+	EndTime     time.Time `json:"end_time"      binding:"required"`
+	Rows        int       `json:"rows"          binding:"required,min=1,max=26"`
+	SeatsPerRow int       `json:"seats_per_row" binding:"required,min=1,max=30"`
+	PriceCents  int64     `json:"price_cents"   binding:"required,min=0"`
+	Currency    string    `json:"currency"      binding:"required"`
+}
+
+type AdminStatsResponse struct {
+	TotalMovies       int   `json:"total_movies"`
+	TotalShowtimes    int   `json:"total_showtimes"`
+	TotalSeats        int   `json:"total_seats"`
+	TotalConfirmed    int64 `json:"total_confirmed_bookings"`
+	TotalRevenueCents int64 `json:"total_revenue_cents"`
 }

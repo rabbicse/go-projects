@@ -201,11 +201,52 @@ All seat keys use the hash tag pattern `seat:{screeningID}:{seatID}`. Redis Clus
 - Go 1.23+, Node.js 22+, Docker + Docker Compose
 - k6 (load tests only) — [install](https://k6.io/docs/get-started/installation/)
 
-### Option A — Full stack with Docker Compose
+### Option A — Run with `go run` and `npm` (no Make required)
+
+This is the simplest way to run locally. Docker is only needed for Redis and MongoDB.
+
+**Step 1 — start databases**
 
 ```bash
-git clone https://github.com/mehmet/cinema-booking
-cd cinema-booking
+docker compose up -d redis mongo
+# Redis on :6379  •  MongoDB on :27017
+```
+
+**Step 2 — run the backend**
+
+```bash
+cd backend
+cp .env.example .env          # edit if needed (defaults work out of the box)
+go run ./cmd/api/main.go
+# API ready at http://localhost:8080
+# Swagger UI:   http://localhost:8080/api/v1/docs
+```
+
+**Step 3 — run the frontend** (new terminal)
+
+```bash
+cd frontend
+cp .env.local.example .env.local
+npm install
+npm run dev
+# App ready at http://localhost:3000
+```
+
+**Default credentials**
+
+| Role | Username | Password |
+|---|---|---|
+| Admin | `admin` | `admin` |
+
+> The backend seeds 5 movies and showtimes automatically on first boot.
+
+---
+
+### Option B — Full stack with Docker Compose
+
+```bash
+git clone https://github.com/rabbicse/movie-ticket-booking
+cd movie-ticket-booking
 
 make up          # builds and starts everything
 
@@ -214,22 +255,24 @@ make up          # builds and starts everything
 # Swagger UI: http://localhost:8080/api/v1/docs
 ```
 
-### Option B — Local development
+### Option C — Local development with Make
 
 ```bash
 make dev-up      # Redis :6379 + MongoDB :27017 only
 
-# Backend (seeds 5 movies + 11 screenings on first start)
+# Backend (seeds 5 movies + showtimes on first start)
 cd backend && cp .env.example .env && make run
 
 # Frontend (separate terminal)
 cd frontend && cp .env.local.example .env.local && npm install && npm run dev
 ```
 
-### Option C — With observability stack
+### Option D — With full observability stack
 
 ```bash
-make up          # also starts Prometheus, Grafana, Loki, Tempo, Promtail
+make monitoring-up   # Redis + MongoDB + Prometheus + Grafana (backend runs locally)
+# or
+make up              # everything including observability
 
 # Grafana:    http://localhost:3001  (admin / admin)
 # Prometheus: http://localhost:9090
@@ -437,6 +480,7 @@ All design documents are in [`.claude/`](.claude/), produced across 15 analysis 
 - [ ] Fix fire-and-forget MongoDB write — add compensating Redis release on failure (TD-03)
 
 **Near term (M1–M6 from [refactor plan](.claude/tasks/backend-refactor-plan.md)):**
+- [ ] Bridge `domain/show.Show` → `domain/movie.Showtime` so admin-scheduled Shows drive the public booking flow (Milestone E)
 - [ ] Rate limiting on booking endpoints (SEC-05)
 - [ ] Pipeline `GetSeatStatuses` Redis calls (240 → 1 round trip) (TD-18)
 - [ ] OpenTelemetry instrumentation end-to-end (M6)

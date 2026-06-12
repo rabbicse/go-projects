@@ -2,46 +2,143 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Movie Ticket Booking API",
-    "description": "Cinema seat booking API. Supports atomic multi-seat holds (1–4 per session) backed by Redis Lua scripts. Persistent booking history in MongoDB.\n\n**Admin credentials:** `admin` / `admin` (HTTP Basic Auth)",
-    "version": "1.0.0",
+    "description": "Cinema seat booking API with JWT authentication.\n\n## Authentication\n\nMost endpoints are public. Protected endpoints require a Bearer token obtained from `POST /auth/login`.\n\nAdmin routes accept a JWT Bearer token with the `admin` role (when `JWT_SECRET` is set).\n\n**Default admin account** (created on first boot): `admin@cinebook.local` / `Admin1234!`\n\n## Booking flow\n1. `GET /movies` → choose a movie\n2. `GET /showtimes/{id}/seats` → see available seats\n3. `POST /showtimes/{id}/hold` → hold seats (10-min TTL)\n4. `PUT /sessions/{id}/confirm` → confirm booking\n5. `DELETE /sessions/{id}` → release if you change your mind",
+    "version": "2.0.0",
     "contact": { "name": "rabbicse" }
   },
   "servers": [
     { "url": "http://localhost:8080/api/v1", "description": "Local development" }
   ],
   "tags": [
-    { "name": "Movies",   "description": "Movie catalog and showtime queries" },
-    { "name": "Booking",  "description": "Seat hold, confirm and release flow" },
-    { "name": "Users",    "description": "User booking history" },
-    { "name": "Admin",    "description": "Movie & showtime management (Basic Auth: admin/admin)" },
-    { "name": "System",   "description": "Health check" }
+    { "name": "Auth",    "description": "Register, login, token refresh, profile" },
+    { "name": "Movies",  "description": "Movie catalog and showtime queries (published movies only)" },
+    { "name": "Booking", "description": "Seat hold, confirm and release flow" },
+    { "name": "Users",   "description": "User booking history" },
+    { "name": "Admin",   "description": "Movie & showtime management — requires admin role" },
+    { "name": "System",  "description": "Health check and metrics" }
   ],
   "paths": {
+
     "/health": {
       "get": {
         "tags": ["System"],
         "summary": "Health check",
+        "security": [],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "example": { "status": "ok" } } } }
         }
       }
     },
+
+    "/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register a new customer account",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Account created — tokens issued immediately",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } }
+          },
+          "400": { "description": "Validation error" },
+          "409": { "description": "Email already registered", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Log in with email and password",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenPair" } } }
+          },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token using a refresh token",
+        "description": "Implements token rotation — the old refresh token is invalidated and a new pair is returned.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "New token pair issued",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TokenPair" } } }
+          },
+          "401": { "description": "Refresh token invalid or expired" }
+        }
+      }
+    },
+
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Invalidate the current refresh token",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshRequest" } } }
+        },
+        "responses": {
+          "204": { "description": "Logged out" }
+        }
+      }
+    },
+
+    "/auth/profile": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get the authenticated user's profile",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UserProfile" } } }
+          },
+          "401": { "description": "Missing or invalid token" }
+        }
+      }
+    },
+
     "/movies": {
       "get": {
         "tags": ["Movies"],
-        "summary": "List all movies with their showtimes",
+        "summary": "List published movies",
+        "description": "Returns only movies with `published: true`. Use the admin endpoints to list all movies including drafts.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "Array of movies",
+            "description": "Array of published movies with showtimes",
             "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Movie" } } } }
           }
         }
       }
     },
+
     "/movies/{id}": {
       "get": {
         "tags": ["Movies"],
         "summary": "Get a single movie by ID",
+        "security": [],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "dune-part-two" }],
         "responses": {
           "200": { "description": "Movie found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
@@ -49,10 +146,12 @@
         }
       }
     },
+
     "/showtimes/{id}": {
       "get": {
         "tags": ["Movies"],
         "summary": "Get a single showtime by ID",
+        "security": [],
         "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "example": "dune2-hall1-1" }],
         "responses": {
           "200": { "description": "Showtime found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Showtime" } } } },
@@ -60,11 +159,13 @@
         }
       }
     },
+
     "/showtimes/{showtimeId}/seats": {
       "get": {
         "tags": ["Booking"],
         "summary": "Get real-time seat map for a showtime",
-        "description": "Returns every booked/held seat. Pass `user_id` to distinguish your own holds (`held_by_me: true`).",
+        "description": "Returns every seat with its status. Pass `user_id` to mark your own holds with `held_by_me: true`.",
+        "security": [],
         "parameters": [
           { "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } },
           { "name": "user_id",    "in": "query", "required": false, "schema": { "type": "string" } }
@@ -77,11 +178,13 @@
         }
       }
     },
+
     "/showtimes/{showtimeId}/hold": {
       "post": {
         "tags": ["Booking"],
         "summary": "Hold 1–4 seats atomically",
-        "description": "Uses a Redis Lua script to lock all requested seats in a single atomic operation. Returns a session that expires after HOLD_TTL (default 10m).",
+        "description": "Uses a Redis Lua script to lock all requested seats in a single atomic operation. Returns a session that expires after HOLD_TTL (default 10 min). Rate-limited to 10 requests/minute.",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -89,16 +192,18 @@
         },
         "responses": {
           "201": { "description": "Seats held", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HoldResponse" } } } },
-          "400": { "description": "Bad request (invalid seat IDs, exceeds max)" },
-          "409": { "description": "Conflict — one or more seats already held" }
+          "400": { "description": "Invalid seat IDs or exceeds max seats" },
+          "409": { "description": "One or more seats are already held or confirmed" }
         }
       }
     },
+
     "/sessions/{sessionId}/confirm": {
       "put": {
         "tags": ["Booking"],
         "summary": "Confirm a held booking",
-        "description": "Converts a temporary hold to a permanent confirmed booking. Persists to MongoDB.",
+        "description": "Converts the temporary hold to a permanent confirmed booking persisted in MongoDB.",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -106,17 +211,40 @@
         },
         "responses": {
           "200": { "description": "Booking confirmed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookingResponse" } } } },
-          "403": { "description": "Forbidden — session belongs to another user" },
+          "403": { "description": "Session belongs to a different user" },
           "404": { "description": "Session not found or expired" },
           "410": { "description": "Hold window has expired" }
         }
       }
     },
+
+    "/sessions/{sessionId}/pay": {
+      "post": {
+        "tags": ["Booking"],
+        "summary": "Process payment for a held session",
+        "description": "Initiates payment for all held seats. On success, the booking is automatically confirmed.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PayRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Payment accepted and booking confirmed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BookingResponse" } } } },
+          "400": { "description": "Invalid payment details" },
+          "404": { "description": "Session not found or expired" },
+          "409": { "description": "Payment already processed" },
+          "422": { "description": "Payment declined" }
+        }
+      }
+    },
+
     "/sessions/{sessionId}": {
       "delete": {
         "tags": ["Booking"],
         "summary": "Release a held booking",
-        "description": "Frees all held seats and cancels the session.",
+        "description": "Frees all held seats and deletes the session.",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
@@ -129,33 +257,55 @@
         }
       }
     },
+
     "/users/{userId}/bookings": {
       "get": {
         "tags": ["Users"],
         "summary": "Get all bookings for a user",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": {
             "description": "Booking list",
             "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/BookingResponse" } } } }
-          }
+          },
+          "401": { "description": "Unauthorized" }
         }
       }
     },
+
+    "/admin/stats": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Get dashboard statistics",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Stats", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AdminStats" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden — admin role required" }
+        }
+      }
+    },
+
     "/admin/movies": {
       "get": {
         "tags": ["Admin"],
-        "summary": "List all movies (admin)",
-        "security": [{ "basicAuth": [] }],
+        "summary": "List all movies (including drafts)",
+        "security": [{ "bearerAuth": [] }],
         "responses": {
-          "200": { "description": "Movie list" },
-          "401": { "description": "Unauthorized" }
+          "200": {
+            "description": "All movies regardless of published status",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Movie" } } } }
+          },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
         }
       },
       "post": {
         "tags": ["Admin"],
         "summary": "Create a new movie",
-        "security": [{ "basicAuth": [] }],
+        "description": "Movies are created as drafts by default (`published: false`). Use `published: true` to publish immediately.",
+        "security": [{ "bearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateMovieRequest" } } }
@@ -163,140 +313,408 @@
         "responses": {
           "201": { "description": "Movie created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
           "400": { "description": "Validation error" },
-          "401": { "description": "Unauthorized" }
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
         }
       }
     },
+
+    "/admin/movies/{movieId}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update movie details",
+        "description": "Updates title, genre, rating, description, duration, and poster URL. Published status is preserved — use the `/publish` and `/unpublish` endpoints to change it.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateMovieRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Updated movie", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Movie not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete a movie and all its showtimes",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Movie not found" }
+        }
+      }
+    },
+
+    "/admin/movies/{movieId}/publish": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Publish a movie",
+        "description": "Makes the movie visible in the public catalog. Validates domain invariants (title, genre, duration) before publishing.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Published movie", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Movie not found" },
+          "422": { "description": "Validation error — movie data is incomplete", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+
+    "/admin/movies/{movieId}/unpublish": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Unpublish a movie",
+        "description": "Removes the movie from the public catalog (sets published to false). Existing bookings are not affected.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Unpublished movie", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Movie" } } } },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Movie not found" }
+        }
+      }
+    },
+
+    "/admin/movies/{movieId}/poster": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Upload a poster image",
+        "description": "Accepts `multipart/form-data` with a `poster` field. Supported formats: jpg, jpeg, png, webp. Max size: 4 MB. The uploaded file is served at `/uploads/posters/{movieId}.{ext}`.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["poster"],
+                "properties": {
+                  "poster": { "type": "string", "format": "binary", "description": "Image file (jpg, jpeg, png, webp — max 4 MB)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Poster uploaded",
+            "content": { "application/json": { "example": { "poster_url": "/uploads/posters/dune-part-two.jpg" } } }
+          },
+          "400": { "description": "Missing file or invalid format/size" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Movie not found" }
+        }
+      }
+    },
+
     "/admin/movies/{movieId}/showtimes": {
       "post": {
         "tags": ["Admin"],
         "summary": "Add a showtime to a movie",
-        "security": [{ "basicAuth": [] }],
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "name": "movieId", "in": "path", "required": true, "schema": { "type": "string" } }],
         "requestBody": {
           "required": true,
           "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateShowtimeRequest" } } }
         },
         "responses": {
-          "201": { "description": "Showtime created" },
+          "201": { "description": "Showtime created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Showtime" } } } },
           "400": { "description": "Validation error or movie not found" },
-          "401": { "description": "Unauthorized" }
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      }
+    },
+
+    "/admin/movies/{movieId}/showtimes/{showtimeId}": {
+      "put": {
+        "tags": ["Admin"],
+        "summary": "Update a showtime",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "movieId",    "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateShowtimeRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Updated showtime", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Showtime" } } } },
+          "400": { "description": "Validation error" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" }
+        }
+      },
+      "delete": {
+        "tags": ["Admin"],
+        "summary": "Delete a showtime",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "movieId",    "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "showtimeId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Deleted" },
+          "401": { "description": "Unauthorized" },
+          "403": { "description": "Forbidden" },
+          "404": { "description": "Showtime not found" }
         }
       }
     }
   },
+
   "components": {
     "securitySchemes": {
-      "basicAuth": { "type": "http", "scheme": "basic" }
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "HS256 JWT issued by `POST /auth/login`. Include as `Authorization: Bearer <token>`."
+      }
     },
     "schemas": {
+
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password", "first_name"],
+        "properties": {
+          "email":      { "type": "string", "format": "email",   "example": "alice@example.com" },
+          "password":   { "type": "string", "minLength": 8,      "example": "s3cr3tP@ss" },
+          "first_name": { "type": "string",                      "example": "Alice" },
+          "last_name":  { "type": "string",                      "example": "Smith" }
+        }
+      },
+
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email":    { "type": "string", "format": "email", "example": "admin@cinebook.local" },
+          "password": { "type": "string",                    "example": "Admin1234!" }
+        }
+      },
+
+      "RefreshRequest": {
+        "type": "object",
+        "required": ["refresh_token"],
+        "properties": {
+          "refresh_token": { "type": "string", "example": "abc123..." }
+        }
+      },
+
+      "TokenPair": {
+        "type": "object",
+        "properties": {
+          "access_token":  { "type": "string", "description": "Short-lived HS256 JWT (15 min)" },
+          "refresh_token": { "type": "string", "description": "Opaque refresh token (7 days)" },
+          "token_type":    { "type": "string", "example": "Bearer" }
+        }
+      },
+
+      "AuthResponse": {
+        "type": "object",
+        "properties": {
+          "user":   { "$ref": "#/components/schemas/UserProfile" },
+          "tokens": { "$ref": "#/components/schemas/TokenPair" }
+        }
+      },
+
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "id":         { "type": "string", "format": "uuid" },
+          "email":      { "type": "string", "format": "email" },
+          "first_name": { "type": "string" },
+          "last_name":  { "type": "string" },
+          "roles":      { "type": "array", "items": { "type": "string", "enum": ["customer", "admin"] } },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+
       "Movie": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "title": { "type": "string" },
-          "genre": { "type": "array", "items": { "type": "string" } },
-          "rating": { "type": "number" },
-          "poster_url": { "type": "string" },
-          "description": { "type": "string" },
-          "duration_min": { "type": "integer" },
-          "showtimes": { "type": "array", "items": { "$ref": "#/components/schemas/Showtime" } }
+          "id":           { "type": "string", "example": "dune-part-two" },
+          "title":        { "type": "string", "example": "Dune: Part Two" },
+          "genre":        { "type": "array", "items": { "type": "string" }, "example": ["Sci-Fi", "Adventure"] },
+          "rating":       { "type": "number", "minimum": 0, "maximum": 10, "example": 8.5 },
+          "poster_url":   { "type": "string" },
+          "description":  { "type": "string" },
+          "duration_min": { "type": "integer", "example": 166 },
+          "published":    { "type": "boolean", "example": true },
+          "created_at":   { "type": "string", "format": "date-time" },
+          "updated_at":   { "type": "string", "format": "date-time" },
+          "showtimes":    { "type": "array", "items": { "$ref": "#/components/schemas/Showtime" } }
         }
       },
+
       "Showtime": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "movie_id": { "type": "string" },
-          "hall": { "type": "string" },
-          "start_time": { "type": "string", "format": "date-time" },
-          "end_time": { "type": "string", "format": "date-time" },
-          "rows": { "type": "integer" },
-          "seats_per_row": { "type": "integer" },
-          "total_seats": { "type": "integer" },
-          "price_cents": { "type": "integer" },
-          "currency": { "type": "string" }
+          "id":           { "type": "string" },
+          "movie_id":     { "type": "string" },
+          "hall":         { "type": "string", "example": "Hall A" },
+          "start_time":   { "type": "string", "format": "date-time" },
+          "end_time":     { "type": "string", "format": "date-time" },
+          "rows":         { "type": "integer" },
+          "seats_per_row":{ "type": "integer" },
+          "total_seats":  { "type": "integer" },
+          "price_cents":  { "type": "integer", "example": 1500 },
+          "currency":     { "type": "string",  "example": "USD" }
         }
       },
+
       "SeatStatus": {
         "type": "object",
         "properties": {
-          "seat_id": { "type": "string", "example": "A1" },
-          "status": { "type": "string", "enum": ["available", "held", "confirmed"] },
+          "seat_id":    { "type": "string", "example": "A1" },
+          "status":     { "type": "string", "enum": ["available", "held", "confirmed"] },
           "held_by_me": { "type": "boolean" },
-          "expires_at": { "type": "integer", "description": "Seconds remaining on hold" }
+          "expires_at": { "type": "integer", "description": "Seconds remaining on hold (only present when held)" }
         }
       },
+
       "HoldRequest": {
         "type": "object",
-        "required": ["user_id", "seat_ids"],
+        "required": ["seat_ids"],
         "properties": {
-          "user_id": { "type": "string", "example": "user-abc123" },
+          "user_id":  { "type": "string", "description": "Optional when using JWT auth (sub claim is used)", "example": "user-abc123" },
           "seat_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "maxItems": 4, "example": ["A1", "A2"] }
         }
       },
+
       "HoldResponse": {
         "type": "object",
         "properties": {
-          "session_id": { "type": "string" },
-          "showtime_id": { "type": "string" },
-          "movie_id": { "type": "string" },
-          "seat_ids": { "type": "array", "items": { "type": "string" } },
-          "status": { "type": "string", "example": "held" },
-          "expires_at": { "type": "integer", "description": "Unix timestamp when hold expires" }
+          "session_id":   { "type": "string" },
+          "showtime_id":  { "type": "string" },
+          "movie_id":     { "type": "string" },
+          "seat_ids":     { "type": "array", "items": { "type": "string" } },
+          "status":       { "type": "string", "example": "held" },
+          "expires_at":   { "type": "integer", "description": "Unix timestamp when hold expires" }
         }
       },
+
       "BookingResponse": {
         "type": "object",
         "properties": {
-          "id": { "type": "string" },
-          "session_id": { "type": "string" },
-          "user_id": { "type": "string" },
-          "showtime_id": { "type": "string" },
-          "movie_id": { "type": "string" },
-          "seats": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "row": { "type": "string" }, "number": { "type": "integer" } } } },
-          "status": { "type": "string" },
-          "total_cents": { "type": "integer" },
-          "currency": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" },
+          "id":           { "type": "string" },
+          "session_id":   { "type": "string" },
+          "user_id":      { "type": "string" },
+          "showtime_id":  { "type": "string" },
+          "movie_id":     { "type": "string" },
+          "seats":        { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "row": { "type": "string" }, "number": { "type": "integer" } } } },
+          "status":       { "type": "string", "enum": ["held", "confirmed"] },
+          "total_cents":  { "type": "integer" },
+          "currency":     { "type": "string" },
+          "created_at":   { "type": "string", "format": "date-time" },
           "confirmed_at": { "type": "string", "format": "date-time" }
         }
       },
+
       "UserIDRequest": {
         "type": "object",
-        "required": ["user_id"],
-        "properties": { "user_id": { "type": "string" } }
+        "properties": {
+          "user_id": { "type": "string", "description": "Optional when using JWT auth" }
+        }
       },
+
+      "AdminStats": {
+        "type": "object",
+        "properties": {
+          "total_movies":             { "type": "integer" },
+          "total_showtimes":          { "type": "integer" },
+          "total_seats":              { "type": "integer" },
+          "total_confirmed_bookings": { "type": "integer" },
+          "total_revenue_cents":      { "type": "integer" }
+        }
+      },
+
       "CreateMovieRequest": {
         "type": "object",
         "required": ["id", "title", "genre", "rating", "duration_min"],
         "properties": {
-          "id": { "type": "string", "example": "my-movie" },
-          "title": { "type": "string", "example": "My Movie" },
-          "genre": { "type": "array", "items": { "type": "string" } },
-          "rating": { "type": "number", "minimum": 0, "maximum": 10 },
-          "poster_url": { "type": "string" },
-          "description": { "type": "string" },
+          "id":           { "type": "string",  "example": "my-movie" },
+          "title":        { "type": "string",  "example": "My Movie" },
+          "genre":        { "type": "array",   "items": { "type": "string" }, "example": ["Action", "Drama"] },
+          "rating":       { "type": "number",  "minimum": 0, "maximum": 10, "example": 7.5 },
+          "poster_url":   { "type": "string" },
+          "description":  { "type": "string" },
+          "duration_min": { "type": "integer", "minimum": 1, "example": 120 },
+          "published":    { "type": "boolean", "default": false, "description": "Set to true to publish immediately" }
+        }
+      },
+
+      "UpdateMovieRequest": {
+        "type": "object",
+        "required": ["title", "genre", "rating", "duration_min"],
+        "properties": {
+          "title":        { "type": "string" },
+          "genre":        { "type": "array", "items": { "type": "string" } },
+          "rating":       { "type": "number", "minimum": 0, "maximum": 10 },
+          "poster_url":   { "type": "string" },
+          "description":  { "type": "string" },
           "duration_min": { "type": "integer", "minimum": 1 }
         }
       },
+
       "CreateShowtimeRequest": {
         "type": "object",
         "required": ["id", "hall", "start_time", "end_time", "rows", "seats_per_row", "price_cents", "currency"],
         "properties": {
-          "id": { "type": "string" },
-          "hall": { "type": "string", "example": "Hall A" },
-          "start_time": { "type": "string", "format": "date-time" },
-          "end_time": { "type": "string", "format": "date-time" },
-          "rows": { "type": "integer", "minimum": 1, "maximum": 26 },
-          "seats_per_row": { "type": "integer", "minimum": 1, "maximum": 30 },
-          "price_cents": { "type": "integer", "example": 1500 },
-          "currency": { "type": "string", "example": "USD" }
+          "id":           { "type": "string" },
+          "hall":         { "type": "string",  "example": "Hall A" },
+          "start_time":   { "type": "string",  "format": "date-time" },
+          "end_time":     { "type": "string",  "format": "date-time" },
+          "rows":         { "type": "integer", "minimum": 1, "maximum": 26 },
+          "seats_per_row":{ "type": "integer", "minimum": 1, "maximum": 30 },
+          "price_cents":  { "type": "integer", "example": 1500 },
+          "currency":     { "type": "string",  "example": "USD" }
         }
       },
+
+      "UpdateShowtimeRequest": {
+        "type": "object",
+        "required": ["hall", "start_time", "end_time", "rows", "seats_per_row", "price_cents", "currency"],
+        "properties": {
+          "hall":         { "type": "string" },
+          "start_time":   { "type": "string", "format": "date-time" },
+          "end_time":     { "type": "string", "format": "date-time" },
+          "rows":         { "type": "integer", "minimum": 1, "maximum": 26 },
+          "seats_per_row":{ "type": "integer", "minimum": 1, "maximum": 30 },
+          "price_cents":  { "type": "integer" },
+          "currency":     { "type": "string" }
+        }
+      },
+
+      "PayRequest": {
+        "type": "object",
+        "required": ["payment_method"],
+        "properties": {
+          "payment_method": { "type": "string", "enum": ["card", "paypal", "stripe"], "example": "card" },
+          "card_token":     { "type": "string", "description": "Opaque card token from the payment provider" }
+        }
+      },
+
       "Error": {
         "type": "object",
-        "properties": { "error": { "type": "string" } }
+        "properties": {
+          "code":    { "type": "string",  "example": "INVALID_CREDENTIALS" },
+          "message": { "type": "string",  "example": "invalid email or password" }
+        }
       }
     }
   }

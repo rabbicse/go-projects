@@ -56,7 +56,7 @@ func movieRouter(svc handler.MovieService) *gin.Engine {
 func sampleMovie() movie.Movie {
 	return movie.Movie{
 		ID: "movie-1", Title: "Test Film", Genre: []string{"Action"},
-		Rating: 8.1, DurationMin: 120,
+		Rating: 8.1, DurationMin: 120, Published: true,
 		Showtimes: []movie.Showtime{sampleShowtimeForTest()},
 	}
 }

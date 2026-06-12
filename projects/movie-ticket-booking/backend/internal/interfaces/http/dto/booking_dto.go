@@ -8,7 +8,7 @@ import (
 
 // HoldSeatsRequest is the request body for POST /showtimes/:id/hold.
 type HoldSeatsRequest struct {
-	UserID  string   `json:"user_id"  binding:"required"`
+	UserID  string   `json:"user_id"`
 	SeatIDs []string `json:"seat_ids" binding:"required,min=1"`
 }
 
@@ -24,7 +24,7 @@ type HoldSeatsResponse struct {
 
 // ConfirmRequest is the request body for PUT /sessions/:id/confirm.
 type ConfirmRequest struct {
-	UserID string `json:"user_id" binding:"required"`
+	UserID string `json:"user_id"`
 }
 
 // BookingResponse represents a confirmed booking.
@@ -40,6 +40,11 @@ type BookingResponse struct {
 	Currency    string     `json:"currency"`
 	CreatedAt   time.Time  `json:"created_at"`
 	ConfirmedAt *time.Time `json:"confirmed_at,omitempty"`
+	// Enrichment fields — populated by GetUserBookings when showtime data is available.
+	MovieTitle string `json:"movie_title,omitempty"`
+	Hall       string `json:"hall,omitempty"`
+	StartTime  string `json:"start_time,omitempty"`
+	EndTime    string `json:"end_time,omitempty"`
 }
 
 type SeatDTO struct {

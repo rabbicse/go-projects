@@ -51,7 +51,7 @@ func (m *mockBookingSvc) GetUserBookings(ctx context.Context, userID string) ([]
 func bookingRouter(svc handler.BookingService) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := handler.NewBookingHandler(svc, 4)
+	h := handler.NewBookingHandler(svc, nil, 4)
 	r.POST("/showtimes/:showtimeId/hold", h.HoldSeats)
 	r.PUT("/sessions/:sessionId/confirm", h.ConfirmBooking)
 	r.DELETE("/sessions/:sessionId", h.ReleaseBooking)
@@ -272,4 +272,83 @@ func TestGetUserBookings_ServiceError(t *testing.T) {
 	bookingRouter(svc).ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+// ─── JWT context tests ────────────────────────────────────────────────────────
+
+// bookingRouterWithJWT builds a router that injects a user_id into the gin context
+// before each handler call, simulating what JWTMiddleware does.
+func bookingRouterWithJWT(svc handler.BookingService, jwtUserID string) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	h := handler.NewBookingHandler(svc, nil, 4)
+
+	inject := func(c *gin.Context) {
+		c.Set("user_id", jwtUserID)
+		c.Next()
+	}
+	r.POST("/showtimes/:showtimeId/hold", inject, h.HoldSeats)
+	r.PUT("/sessions/:sessionId/confirm", inject, h.ConfirmBooking)
+	r.DELETE("/sessions/:sessionId", inject, h.ReleaseBooking)
+	r.GET("/showtimes/:showtimeId/seats", h.GetSeatMap)
+	r.GET("/users/:userId/bookings", h.GetUserBookings)
+	return r
+}
+
+// TestHoldSeats_JWTOverridesBody verifies that the JWT context user_id takes
+// precedence over the user_id supplied in the request body.
+func TestHoldSeats_JWTOverridesBody(t *testing.T) {
+	svc := &mockBookingSvc{}
+	// Must be called with the JWT identity, not the body identity.
+	svc.On("HoldSeats", mock.Anything, "jwt-user", "show-1", []string{"A1"}).
+		Return(booking.Session{
+			ID: "sess-1", UserID: "jwt-user", ShowtimeID: "show-1", MovieID: "movie-1",
+			SeatIDs: []string{"A1"}, Status: booking.StatusHeld,
+			ExpiresAt: time.Now().Add(10 * time.Minute).Unix(),
+		}, nil)
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/showtimes/show-1/hold",
+		jsonBody(t, map[string]any{"user_id": "body-user", "seat_ids": []string{"A1"}}))
+	req.Header.Set("Content-Type", "application/json")
+	bookingRouterWithJWT(svc, "jwt-user").ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	svc.AssertExpectations(t)
+}
+
+// TestHoldSeats_NoUserID_Returns401 verifies that omitting user_id from both
+// the request body and the JWT context results in HTTP 401.
+func TestHoldSeats_NoUserID_Returns401(t *testing.T) {
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/showtimes/show-1/hold",
+		jsonBody(t, map[string]any{"seat_ids": []string{"A1"}})) // no user_id
+	req.Header.Set("Content-Type", "application/json")
+	bookingRouter(&mockBookingSvc{}).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "UNAUTHENTICATED", resp["code"])
+}
+
+// TestConfirmBooking_JWTUser verifies that confirm works with no body user_id
+// when the JWT context provides the identity.
+func TestConfirmBooking_JWTUser(t *testing.T) {
+	svc := &mockBookingSvc{}
+	svc.On("ConfirmBooking", mock.Anything, "sess-1", "jwt-user").
+		Return(booking.Booking{
+			ID: "bk-1", SessionID: "sess-1", UserID: "jwt-user",
+			Status: booking.StatusConfirmed,
+		}, nil)
+
+	w := httptest.NewRecorder()
+	// Body carries no user_id — JWT context supplies it.
+	req := httptest.NewRequest(http.MethodPut, "/sessions/sess-1/confirm",
+		jsonBody(t, map[string]any{}))
+	req.Header.Set("Content-Type", "application/json")
+	bookingRouterWithJWT(svc, "jwt-user").ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	svc.AssertExpectations(t)
 }

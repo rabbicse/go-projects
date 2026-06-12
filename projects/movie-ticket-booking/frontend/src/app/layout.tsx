@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { UserBadge } from "@/components/UserBadge";
+import { NavLinks } from "@/components/NavLinks";
+import { QueryProvider } from "@/components/QueryProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -12,6 +14,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <QueryProvider>
         {/* ── Nav ─────────────────────────────────────────────────────── */}
         <nav className="nav-bar">
           <div className="page-container nav-inner">
@@ -20,15 +23,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             </Link>
             <div className="nav-right">
               <UserBadge />
-              <Link href="/bookings" className="nav-link">
-                My Bookings
-              </Link>
-              <Link href="/api/v1/docs" target="_blank" rel="noopener noreferrer" className="nav-link">
-                API Docs ↗
-              </Link>
-              <Link href="/admin" className="nav-link">
-                Admin
-              </Link>
+              <NavLinks />
             </div>
           </div>
         </nav>
@@ -42,6 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             Cinema Booking &mdash; Up to 4 seats per session &bull; Holds expire in 10 min
           </div>
         </footer>
+        </QueryProvider>
       </body>
     </html>
   );

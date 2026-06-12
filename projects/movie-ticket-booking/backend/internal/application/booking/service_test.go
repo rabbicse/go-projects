@@ -65,6 +65,9 @@ func (m *mockBookingRepo) FindByShowtime(ctx context.Context, showtimeID string)
 	args := m.Called(ctx, showtimeID)
 	return args.Get(0).([]booking.Booking), args.Error(1)
 }
+func (m *mockBookingRepo) GetStats(_ context.Context) (booking.BookingStats, error) {
+	return booking.BookingStats{}, nil
+}
 
 type mockMovieRepo struct{ mock.Mock }
 
@@ -89,6 +92,9 @@ func (m *mockMovieRepo) SaveShowtime(ctx context.Context, s movie.Showtime) erro
 func (m *mockMovieRepo) UpsertMany(ctx context.Context, movies []movie.Movie) error {
 	return m.Called(ctx, movies).Error(0)
 }
+func (m *mockMovieRepo) Update(_ context.Context, _ movie.Movie) error        { return nil }
+func (m *mockMovieRepo) Delete(_ context.Context, _ string) error              { return nil }
+func (m *mockMovieRepo) DeleteShowtime(_ context.Context, _ string) error      { return nil }
 
 // --- Helpers ---
 

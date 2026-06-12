@@ -3,11 +3,18 @@ import type {
   ErrorResponse,
   HoldResponse,
   Movie,
+  PaymentResponse,
   SeatStatus,
   Showtime,
 } from "@/types";
 
 const BASE = "/api/v1";
+
+function authHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("cinebook_access_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export class ApiError extends Error {
   constructor(
@@ -27,7 +34,7 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: body != null ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
@@ -65,6 +72,15 @@ export const api = {
   },
 
   sessions: {
+    pay: (
+      sessionID: string,
+      userID: string,
+      card: { card_number: string; expiry: string; cvv: string; amount_cents: number; currency: string }
+    ) =>
+      request<PaymentResponse>("POST", `/sessions/${sessionID}/pay`, {
+        user_id: userID,
+        ...card,
+      }),
     confirm: (sessionID: string, userID: string) =>
       request<BookingResponse>("PUT", `/sessions/${sessionID}/confirm`, {
         user_id: userID,

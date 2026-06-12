@@ -6,7 +6,8 @@ import { SeatGrid, type SeatState } from "@/components/SeatGrid";
 import type { ActiveSession, BookingResponse, Showtime } from "@/types";
 
 const MAX_SEATS      = parseInt(process.env.NEXT_PUBLIC_MAX_SEATS ?? "4", 10);
-const PAYMENT_TTL_S  = 180; // 3-minute payment window
+const PAYMENT_TTL_S  = 180;
+const SYNC_DEBOUNCE_MS = 300; // wait for click burst to settle before hitting the API
 
 function getUserID(): string {
   if (typeof window === "undefined") return "";
@@ -40,16 +41,37 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
 
   // ── booking state ──────────────────────────────────────────────
   const [stage,     setStage]     = useState<Stage>("browse");
-  const [selected,  setSelected]  = useState<string[]>([]);   // optimistic local seats
+  const [selected,  setSelected]  = useState<string[]>([]);
   const [session,   setSession]   = useState<ActiveSession | null>(null);
   const [payExpiry, setPayExpiry] = useState<number | null>(null);
   const [confirmed, setConfirmed] = useState<BookingResponse | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);
-  const [busy,      setBusy]      = useState(false);
-  const [tick,      setTick]      = useState(0); // 1-second heartbeat
+  const [tick,      setTick]      = useState(0);
 
-  const sessionRef = useRef(session);
+  // ── payment card form state ────────────────────────────────────
+  const [cardNum,    setCardNum]    = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCVV,    setCardCVV]    = useState("");
+
+  /**
+   * busy: true during explicit user actions (Release All, Pay Now).
+   * Disables buttons to prevent double-submit.
+   *
+   * syncing: true from the moment a seat click schedules a debounced API call
+   * until that call completes. Seat clicks remain active while syncing — each
+   * new click cancels the previous debounce and reschedules (click-burst batching).
+   * Action buttons (Proceed, Release) are disabled while syncing.
+   */
+  const [busy,    setBusy]    = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  const sessionRef  = useRef(session);
   sessionRef.current = session;
+
+  // Debounce + generation counter for background seat sync.
+  // Generation prevents stale async results from overwriting current state.
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const syncGenRef  = useRef(0);
 
   // ── data fetch ─────────────────────────────────────────────────
   useEffect(() => {
@@ -90,41 +112,37 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
   }, [userID]);
 
   // ── helpers ────────────────────────────────────────────────────
-  function errFor(ms = 3000) {
-    return (e: unknown) => {
-      setActionErr(e instanceof Error ? e.message : "Error");
-      setTimeout(() => setActionErr(null), ms);
-    };
+  function showError(e: unknown, ms = 3000) {
+    const msg = e instanceof Error ? e.message : "Error";
+    setActionErr(msg);
+    setTimeout(() => setActionErr(null), ms);
   }
 
-  // ── actions ────────────────────────────────────────────────────
-
-  /**
-   * Re-hold: release existing session (if any) then hold the new seat list.
-   * Called on every seat click so the user can build up to MAX_SEATS seats
-   * without ever pressing a "Hold" button.
-   */
-  const reHold = useCallback(async (newSeats: string[]) => {
-    setBusy(true);
-    setActionErr(null);
-
-    // Optimistic UI — seats turn gold immediately
-    setSelected(newSeats);
-
+  // ── background seat-hold sync (called after debounce settles) ──
+  //
+  // Each invocation is stamped with a generation number. If a newer sync
+  // supersedes this one (user clicked again during the API call), we return
+  // early and leave state untouched. The superseded hold expires via TTL.
+  const syncHold = useCallback(async (seats: string[], gen: number) => {
     const prev = sessionRef.current;
+
     try {
-      // Release previous session if any (best-effort)
+      // Release previous session before placing a new hold
       if (prev) {
-        try { await api.sessions.release(prev.sessionID, userID); } catch { /* expired already */ }
+        try { await api.sessions.release(prev.sessionID, userID); } catch { /* already expired */ }
+        if (syncGenRef.current !== gen) return; // superseded
         setSession(null);
       }
 
-      if (newSeats.length === 0) {
+      if (seats.length === 0) {
+        if (syncGenRef.current !== gen) return;
         setStage("browse");
         return;
       }
 
-      const res = await api.showtimes.hold(showtimeId, userID, newSeats);
+      const res = await api.showtimes.hold(showtimeId, userID, seats);
+      if (syncGenRef.current !== gen) return; // superseded — orphan hold expires via TTL
+
       setSession({
         sessionID:  res.session_id,
         showtimeID: res.showtime_id,
@@ -133,19 +151,69 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
         expiresAt:  res.expires_at,
       });
       setStage("checkout");
+      setActionErr(null);
     } catch (e) {
-      // Revert optimistic selection on error
+      if (syncGenRef.current !== gen) return;
+      // Rollback the optimistic selection to the previous hold's seats
       setSelected(prev?.seatIDs ?? []);
       setStage(prev ? "checkout" : "browse");
-      errFor()(e);
+      showError(e);
     } finally {
-      setBusy(false);
+      if (syncGenRef.current === gen) setSyncing(false);
     }
   }, [showtimeId, userID]);
 
+  // ── seat click handler ─────────────────────────────────────────
+  //
+  // BEFORE: each click set busy=true, ran a sequential release+hold (~400ms),
+  //         then set busy=false. All clicks during that window were ignored.
+  //
+  // AFTER:  each click updates local state instantly (zero latency), then
+  //         schedules a debounced API sync. Rapid clicks cancel the previous
+  //         debounce — the API is called only once after the burst settles.
+  function handleSeatClick(seatID: string, state: SeatState) {
+    if (stage === "paying" || stage === "confirmed") return;
+    if (busy) return; // still blocked during explicit release/confirm operations
+
+    let next: string[];
+    if (state === "available") {
+      if (selected.length >= MAX_SEATS) return;
+      next = [...selected, seatID];
+    } else if (state === "held-mine") {
+      next = selected.filter(s => s !== seatID);
+    } else {
+      return;
+    }
+
+    // 1. Instant optimistic update — no network, no busy flag
+    setSelected(next);
+    setSyncing(true);
+
+    // 2. Short-circuit: nothing on server to sync if no session and no seats
+    if (next.length === 0 && !sessionRef.current) {
+      setStage("browse");
+      setSyncing(false);
+      return;
+    }
+
+    // 3. Debounce: cancel any pending sync and reschedule
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const gen = ++syncGenRef.current;
+    debounceRef.current = setTimeout(() => syncHold(next, gen), SYNC_DEBOUNCE_MS);
+  }
+
+  // ── doRelease ─────────────────────────────────────────────────
   const doRelease = useCallback(async () => {
-    const s = sessionRef.current;
+    // Cancel any pending debounce and mark in-flight sync as stale
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    ++syncGenRef.current;
     setBusy(true);
+    setSyncing(false);
+
+    const s = sessionRef.current;
     if (s) {
       try { await api.sessions.release(s.sessionID, userID); } catch { /* ignore */ }
     }
@@ -159,34 +227,39 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
 
   async function doConfirm() {
     const s = sessionRef.current;
-    if (!s || busy) return;
+    if (!s || busy || !showtime) return;
     setBusy(true);
     setActionErr(null);
     try {
-      const booking = await api.sessions.confirm(s.sessionID, userID);
-      setConfirmed(booking);
+      const result = await api.sessions.pay(s.sessionID, userID, {
+        card_number: cardNum,
+        expiry: cardExpiry,
+        cvv: cardCVV,
+        amount_cents: showtime.price_cents * s.seatIDs.length,
+        currency: showtime.currency,
+      });
+      setConfirmed(result.booking);
       setSession(null);
       setSelected([]);
       setStage("confirmed");
       setPayExpiry(null);
     } catch (e) {
-      errFor()(e);
+      showError(e);
     } finally {
       setBusy(false);
     }
   }
 
-  // ── seat click handler ─────────────────────────────────────────
-  function handleSeatClick(seatID: string, state: SeatState) {
-    if (busy || stage === "paying" || stage === "confirmed") return;
-
-    if (state === "available") {
-      if (selected.length >= MAX_SEATS) return; // at limit — ignore
-      reHold([...selected, seatID]);
-    } else if (state === "held-mine") {
-      const next = selected.filter(s => s !== seatID);
-      reHold(next); // re-hold remaining, or release if empty
+  function proceedToPayment() {
+    // Cancel any pending seat sync — seat set is final at this point
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
     }
+    ++syncGenRef.current;
+    setSyncing(false);
+    setPayExpiry(Math.floor(Date.now() / 1000) + PAYMENT_TTL_S);
+    setStage("paying");
   }
 
   // ── render ────────────────────────────────────────────────────
@@ -195,6 +268,7 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
 
   const holdLeft = session ? Math.max(0, session.expiresAt - Math.floor(Date.now() / 1000)) : 0;
   const payLeft  = payExpiry ? Math.max(0, payExpiry - Math.floor(Date.now() / 1000)) : 0;
+  const actionBusy = busy || syncing; // used to disable action buttons
 
   return (
     <div className="page-container" style={{ paddingTop: "2.5rem", paddingBottom: "4rem" }}>
@@ -247,6 +321,15 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
             onClickSeat={handleSeatClick}
             interactive={stage === "browse" || stage === "checkout"}
           />
+          {/* Sync indicator — non-blocking, purely informational */}
+          {syncing && (
+            <p style={{
+              textAlign: "center", marginTop: "0.5rem",
+              fontSize: "0.65rem", color: "var(--text-dim)", letterSpacing: "0.04em",
+            }}>
+              syncing…
+            </p>
+          )}
         </div>
 
         {/* Side panel */}
@@ -265,13 +348,13 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
           )}
 
           {/* CHECKOUT — seats held */}
-          {stage === "checkout" && session && (
+          {(stage === "checkout" || (stage === "browse" && selected.length > 0)) && (
             <Panel>
               <PanelTitle>Checkout</PanelTitle>
 
               {/* Selected seats chips */}
               <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginBottom: "0.875rem" }}>
-                {session.seatIDs.map(id => (
+                {selected.map(id => (
                   <span key={id} style={{
                     fontSize: "0.72rem", fontWeight: 600,
                     background: "var(--held-mine)", color: "#000",
@@ -280,24 +363,26 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
                 ))}
               </div>
 
-              <InfoRow label="Price" value={fmt(showtime.price_cents * session.seatIDs.length, showtime.currency)} bold />
-              <InfoRow label="Session" value={session.sessionID.slice(0, 8) + "…"} />
+              <InfoRow label="Price" value={fmt(showtime.price_cents * selected.length, showtime.currency)} bold />
+              {session && <InfoRow label="Session" value={session.sessionID.slice(0, 8) + "…"} />}
 
-              <div style={{ margin: "0.875rem 0", textAlign: "center" }}>
-                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
-                  Hold expires in
+              {session && (
+                <div style={{ margin: "0.875rem 0", textAlign: "center" }}>
+                  <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
+                    Hold expires in
+                  </div>
+                  <Countdown value={countdown(session.expiresAt)} urgent={holdLeft < 60} />
                 </div>
-                <Countdown value={countdown(session.expiresAt)} urgent={holdLeft < 60} />
-              </div>
+              )}
 
               <p style={{ fontSize: "0.68rem", color: "var(--text-dim)", marginBottom: "0.875rem", textAlign: "center" }}>
                 Click a gold seat to remove it &bull; click available seat to add
               </p>
 
-              <Btn accent onClick={proceedToPayment} disabled={busy}>
-                Proceed to Payment →
+              <Btn accent onClick={proceedToPayment} disabled={actionBusy}>
+                {syncing ? "Syncing…" : "Proceed to Payment →"}
               </Btn>
-              <Btn danger onClick={doRelease} disabled={busy} style={{ marginTop: "0.45rem" }}>
+              <Btn danger onClick={doRelease} disabled={actionBusy} style={{ marginTop: "0.45rem" }}>
                 Release All
               </Btn>
             </Panel>
@@ -320,15 +405,27 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
 
               <InfoRow label="Total" value={fmt(showtime.price_cents * session.seatIDs.length, showtime.currency)} bold />
 
-              <div style={{ margin: "0.875rem 0", textAlign: "center" }}>
-                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>
-                  Pay within
-                </div>
+              <div style={{ margin: "0.75rem 0", textAlign: "center" }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>Pay within</div>
                 <Countdown value={countdown(payExpiry!)} urgent={payLeft < 60} />
               </div>
 
-              <Btn accent onClick={doConfirm} disabled={busy}>
-                {busy ? "Processing…" : "✓ Pay Now"}
+              {/* Card form */}
+              <CardInput label="Card number" value={cardNum} onChange={setCardNum} placeholder="1234 5678 9012 3456" maxLen={19} disabled={busy} />
+              <div style={{ display: "flex", gap: "0.45rem" }}>
+                <CardInput label="Expiry" value={cardExpiry} onChange={setCardExpiry} placeholder="MM/YY" maxLen={5} disabled={busy} />
+                <CardInput label="CVV" value={cardCVV} onChange={setCardCVV} placeholder="123" maxLen={4} disabled={busy} />
+              </div>
+              <p style={{ fontSize: "0.65rem", color: "var(--text-dim)", marginBottom: "0.75rem", marginTop: "-0.25rem" }}>
+                Test: any card not ending in 0000 succeeds.
+              </p>
+
+              <Btn
+                accent
+                onClick={doConfirm}
+                disabled={busy || !cardNum.trim() || !cardExpiry.trim() || !cardCVV.trim()}
+              >
+                {busy ? "Processing…" : `Pay ${fmt(showtime.price_cents * session.seatIDs.length, showtime.currency)}`}
               </Btn>
               <Btn onClick={doRelease} disabled={busy} style={{ marginTop: "0.45rem" }}>
                 Cancel
@@ -365,11 +462,6 @@ export default function ShowtimePage({ params }: { params: Promise<{ showtimeId:
       </div>
     </div>
   );
-
-  function proceedToPayment() {
-    setPayExpiry(Math.floor(Date.now() / 1000) + PAYMENT_TTL_S);
-    setStage("paying");
-  }
 }
 
 /* ── primitives ─────────────────────────────────────────────────── */
@@ -405,6 +497,32 @@ function Countdown({ value, urgent }: { value: string; urgent: boolean }) {
       color: urgent ? "var(--danger)" : "var(--held-mine)", transition: "color 0.3s",
     }}>
       {value}
+    </div>
+  );
+}
+
+function CardInput({ label, value, onChange, placeholder, maxLen, disabled }: {
+  label: string; value: string; onChange: (v: string) => void;
+  placeholder: string; maxLen: number; disabled: boolean;
+}) {
+  return (
+    <div style={{ flex: 1, marginBottom: "0.5rem" }}>
+      <label style={{ display: "block", fontSize: "0.65rem", color: "var(--text-muted)", marginBottom: "0.2rem" }}>{label}</label>
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLen}
+        disabled={disabled}
+        style={{
+          width: "100%", padding: "0.45rem 0.55rem",
+          border: "1px solid var(--border)", borderRadius: "5px",
+          background: "var(--surface-2)", color: "var(--text)",
+          fontSize: "0.78rem", fontFamily: "inherit",
+          boxSizing: "border-box" as const,
+        }}
+      />
     </div>
   );
 }

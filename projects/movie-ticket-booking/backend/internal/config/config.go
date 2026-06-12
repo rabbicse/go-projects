@@ -14,6 +14,20 @@ type Config struct {
 	MongoDB MongoDBConfig
 	Booking BookingConfig
 	Admin   AdminConfig
+	Auth    AuthConfig
+}
+
+type AuthConfig struct {
+	// JWKSEndpoint enables external RS256 validation (e.g. future OAuth2/PKCE provider).
+	// Leave empty when using built-in HS256 auth (JWT_SECRET).
+	JWKSEndpoint string `env:"AUTH_JWKS_ENDPOINT" envDefault:""`
+
+	// JWTSecret enables built-in HS256 auth. Must be ≥32 chars in production.
+	// Extension point: swap for RSA key path when upgrading to RS256/PKCE.
+	JWTSecret string `env:"JWT_SECRET" envDefault:""`
+
+	// RefreshTokenTTL controls how long refresh tokens remain valid (default 7 days).
+	RefreshTokenTTL time.Duration `env:"REFRESH_TOKEN_TTL" envDefault:"168h"`
 }
 
 type ServerConfig struct {

@@ -136,6 +136,38 @@ func (r *BookingRepository) FindByShowtime(ctx context.Context, showtimeID strin
 	return decodeBookings(ctx, cur)
 }
 
+func (r *BookingRepository) GetStats(ctx context.Context) (booking.BookingStats, error) {
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$status"},
+			{Key: "count", Value: bson.D{{Key: "$sum", Value: 1}}},
+			{Key: "revenue", Value: bson.D{{Key: "$sum", Value: "$total_cents"}}},
+		}}},
+	}
+	cur, err := r.db.Collection(bookingsCollection).Aggregate(ctx, pipeline)
+	if err != nil {
+		return booking.BookingStats{}, fmt.Errorf("stats aggregate: %w", err)
+	}
+	defer cur.Close(ctx)
+
+	var stats booking.BookingStats
+	for cur.Next(ctx) {
+		var row struct {
+			ID      string `bson:"_id"`
+			Count   int64  `bson:"count"`
+			Revenue int64  `bson:"revenue"`
+		}
+		if err := cur.Decode(&row); err != nil {
+			continue
+		}
+		if row.ID == string(booking.StatusConfirmed) {
+			stats.TotalConfirmed = row.Count
+			stats.TotalRevenueCents = row.Revenue
+		}
+	}
+	return stats, nil
+}
+
 func decodeBookings(ctx context.Context, cur *mongo.Cursor) ([]booking.Booking, error) {
 	var docs []bookingDoc
 	if err := cur.All(ctx, &docs); err != nil {

@@ -6,6 +6,9 @@ export interface Movie {
   poster_url: string;
   description: string;
   duration_min: number;
+  published: boolean;
+  created_at?: string;
+  updated_at?: string;
   showtimes: Showtime[];
 }
 
@@ -50,6 +53,11 @@ export interface BookingResponse {
   currency: string;
   created_at: string;
   confirmed_at?: string;
+  // Enrichment fields — present when the backend can resolve showtime/movie metadata.
+  movie_title?: string;
+  hall?: string;
+  start_time?: string;
+  end_time?: string;
 }
 
 export interface ActiveSession {
@@ -60,7 +68,51 @@ export interface ActiveSession {
   expiresAt: number; // unix timestamp
 }
 
+export interface PaymentResponse {
+  payment_id: string;
+  status: "completed" | "failed";
+  booking: BookingResponse;
+}
+
 export interface ErrorResponse {
   code: string;
   message: string;
+}
+
+export interface Theater {
+  id: string;
+  name: string;
+  location: string;
+  status: "active" | "disabled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Seat {
+  id: string;
+  row: string;
+  number: number;
+  category: "standard" | "premium" | "vip";
+}
+
+export interface Screen {
+  id: string;
+  theater_id: string;
+  name: string;
+  capacity: number;
+  seats: Seat[];
+  status: "active" | "disabled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Show {
+  id: string;
+  movie_id: string;
+  screen_id: string;
+  start_time: string;
+  end_time: string;
+  status: "scheduled" | "cancelled";
+  created_at: string;
+  updated_at: string;
 }

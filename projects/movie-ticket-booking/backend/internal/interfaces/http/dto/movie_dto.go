@@ -14,6 +14,9 @@ type MovieResponse struct {
 	PosterURL   string             `json:"poster_url"`
 	Description string             `json:"description"`
 	DurationMin int                `json:"duration_min"`
+	Published   bool               `json:"published"`
+	CreatedAt   time.Time          `json:"created_at,omitempty"`
+	UpdatedAt   time.Time          `json:"updated_at,omitempty"`
 	Showtimes   []ShowtimeResponse `json:"showtimes,omitempty"`
 }
 
@@ -43,6 +46,9 @@ func ToMovieResponse(m movie.Movie) MovieResponse {
 		PosterURL:   m.PosterURL,
 		Description: m.Description,
 		DurationMin: m.DurationMin,
+		Published:   m.Published,
+		CreatedAt:   m.CreatedAt,
+		UpdatedAt:   m.UpdatedAt,
 		Showtimes:   showtimes,
 	}
 }

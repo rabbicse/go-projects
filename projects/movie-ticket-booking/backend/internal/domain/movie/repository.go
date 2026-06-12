@@ -9,4 +9,7 @@ type Repository interface {
 	Save(ctx context.Context, m Movie) error
 	SaveShowtime(ctx context.Context, s Showtime) error
 	UpsertMany(ctx context.Context, movies []Movie) error
+	Update(ctx context.Context, m Movie) error
+	Delete(ctx context.Context, id string) error
+	DeleteShowtime(ctx context.Context, showtimeID string) error
 }

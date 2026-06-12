@@ -183,3 +183,8 @@ func (s *Service) ShowtimePrice(ctx context.Context, showtimeID string) (shared.
 	}
 	return st.Price, nil
 }
+
+// GetStats returns aggregate booking counts for the admin dashboard.
+func (s *Service) GetStats(ctx context.Context) (booking.BookingStats, error) {
+	return s.bookingRepo.GetStats(ctx)
+}

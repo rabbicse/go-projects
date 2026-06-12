@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAuthEmail, isAuthenticated } from "@/lib/auth";
 
-function getOrCreateUserID(): string {
+function getOrCreateAnonID(): string {
   const stored = sessionStorage.getItem("cinebook_user_id");
   if (stored) return stored;
   const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
@@ -11,20 +12,29 @@ function getOrCreateUserID(): string {
 }
 
 export function UserBadge() {
-  const [userID, setUserID] = useState<string | null>(null);
+  const [label, setLabel] = useState<string | null>(null);
 
   useEffect(() => {
-    setUserID(getOrCreateUserID());
+    if (isAuthenticated()) {
+      const email = getAuthEmail();
+      setLabel(email ?? "signed in");
+    } else {
+      setLabel(`anon:${getOrCreateAnonID()}`);
+    }
   }, []);
 
-  if (!userID) return null;
+  if (!label) return null;
 
   return (
     <span
       className="text-xs px-2 py-1 rounded"
-      style={{ background: "var(--surface)", color: "var(--text-muted)", border: "1px solid var(--border)", fontFamily: "inherit" }}
+      style={{
+        background: "var(--surface)", color: "var(--text-muted)",
+        border: "1px solid var(--border)", fontFamily: "inherit",
+        fontSize: "0.75rem",
+      }}
     >
-      user: {userID}
+      {label}
     </span>
   );
 }
